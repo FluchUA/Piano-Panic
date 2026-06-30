@@ -1,11 +1,11 @@
 import { Boot } from './scenes/Boot';
-import { Game as MainGame } from './scenes/Game';
 import { MainMenu } from './scenes/MainMenu';
 import { PianoScene } from './scenes/PianoScene';
 import { InitScene } from './scenes/InitScene';
 import { RateTrackScene } from './scenes/RateTrack';
 import { ShopScene } from './scenes/ShopScene';
 import { UserRecordsScene } from './scenes/UserRecords';
+import { LoaderScene } from './scenes/LoaderScene';
 import * as Phaser from 'phaser';
 import { AUTO, Game } from 'phaser';
 import { Preloader } from './scenes/Preloader';
@@ -15,7 +15,7 @@ import { Preloader } from './scenes/Preloader';
 const config: Phaser.Types.Core.GameConfig = {
   type: AUTO,
   parent: 'game-container',
-  backgroundColor: '#028af8',
+  backgroundColor: '#16100d',
   scale: {
     // Keep a fixed game resolution but automatically scale it to fit within the available
     // web-view / device while maintaining aspect ratio.
@@ -24,7 +24,7 @@ const config: Phaser.Types.Core.GameConfig = {
     width: 1024,
     height: 768,
   },
-  scene: [Boot, Preloader, MainMenu, MainGame, PianoScene, InitScene, RateTrackScene, ShopScene, UserRecordsScene],
+  scene: [Boot, LoaderScene, InitScene, Preloader, MainMenu, PianoScene, RateTrackScene, ShopScene, UserRecordsScene],
 };
 
 const StartGame = (parent: string) => {

@@ -1,4 +1,4 @@
-import { Scene } from 'phaser';
+import Phaser, { Scene } from 'phaser';
 
 type CurrencyConfig = {
   scene: Scene;

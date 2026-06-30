@@ -8,9 +8,19 @@ export enum AppMode {
 }
 
 export enum ShopItem {
-    ORGAN = 'organ',
-    PIANO = 'piano',
     TIME_PLUS_5 = 'time_plus_5',
+    SYNTH_PIANO = 'synth_piano',
+    ORGAN = 'organ',
+    RETRO = 'retro',
+    ELECTRO = 'electro',
+}
+
+export enum InstrumentId {
+    DEFAULT_PIANO = 'SamplerPiano',
+    SYNTH_PIANO = 'Synth',
+    ORGAN = 'SamplerOrgan',
+    RETRO = 'MonoSynth',
+    ELECTRO = 'FMSynth',
 }
 
 export enum PianoEventType {
@@ -18,6 +28,7 @@ export enum PianoEventType {
     NoteOff = 'NOTE_OFF',
     OctaveSet = 'OCTAVE_SET',
     PedalToggle = 'PEDAL_TOGGLE',
+    MetronomeToggle = 'METRONOME_TOGGLE',
 }
 
 /////////////////////////////////////////////
@@ -29,60 +40,77 @@ export type ErrorResponse = {
     message: string;
 };
 
-export interface TrackModel {
+export type PianoEvent = {
+    time: number; // Milliseconds from the start of the recording
+    type: PianoEventType;
+    value: string | number | boolean; // Note, octave offset, pedal state, or metronome state
+};
+
+export type TrackModel = {
     id: string;
     userId: string;
     name: string;
     timeline: PianoEvent[];
     instrumentId: string;
+    createdAt: number;
+    durationMs: number;
+    noteCount: number;
     isPublished: boolean;
-}
-
-export interface PianoEvent {
-    time: number;                    // Milliseconds from the start of the recording
-    type: PianoEventType;
-    value: string | number | boolean; // Note (‘C4’), octave (1), or pedal (true)
-}
+    averageRating: number;
+    ratingCount: number;
+    listenerCount: number;
+    postId?: string;
+    publishedAt?: number;
+};
 
 /////////////////////////////////////////////
-// APIs ANSWERS
+// API RESPONSES
 /////////////////////////////////////////////
 
 export type UserResponse = {
-id: string;
+    id: string;
     name: string;
     notes: number;
     purchasedItems: ShopItem[];
     maxTrackDuration: number;
 };
 
-export type PostInfoResponse = 
+export type PostInfoResponse =
     | { mode: AppMode.HUB }
-    | { 
-        mode: AppMode.RATE; 
+    | {
+        mode: AppMode.RATE;
         riddleData: {
             track: TrackModel;
             averageRating: number;
             ratingCount: number;
+            listenerCount: number;
+            hasListened: boolean;
             userVote: number | null;
+            isAuthor: boolean;
             authorName: string;
             authorNotes: number;
-        }
-      };
+        };
+    };
 
 export type BuyItemResponse = {
     success: true;
     updatedNotes: number;
-    updatedDuration?: number; // Only available when purchasing time
-    purchasedItems?: ShopItem[]; // Only available when purchasing items
+    updatedDuration?: number;
+    purchasedItems?: ShopItem[];
 };
 
-export type UserTracksResponse = TrackModel[];
+export type UserTracksResponse = {
+    tracks: TrackModel[];
+    page: number;
+    limit: number;
+    hasNextPage: boolean;
+};
 
 export type SaveTrackResponse = TrackModel;
 
 export type PublishTrackResponse = {
     bonusNotes: number;
+    postId: string;
 };
 
 export type RemoveTrackResponse = {
@@ -94,4 +122,19 @@ export type SubmitRatingResponse = {
     reward: number;
     averageRating: number;
     ratingCount: number;
+};
+
+export type ListenTrackResponse = {
+    hasListened: true;
+    listenerCount: number;
+};
+
+export type DebugNotesResponse = {
+    notes: number;
+};
+
+export type DebugResetShopResponse = {
+    notes: number;
+    purchasedItems: ShopItem[];
+    maxTrackDuration: number;
 };

@@ -1,5 +1,4 @@
 import { Scene } from 'phaser';
-import { LoaderOverlay } from '../UI/LoaderOverlay';
 
 export class Boot extends Scene {
   constructor() {
@@ -7,16 +6,12 @@ export class Boot extends Scene {
   }
 
   preload() {
-    //  The Boot Scene is typically used to load in any assets you require for your Preloader, such as a game logo or background.
-    //  The smaller the file size of the assets, the better, as the Boot Scene itself has no preloader.
-
+    // Load only the tiny asset needed before the shared loader overlay appears.
     this.load.image('background', '../assets/bg.png');
   }
 
   create() {
-    const loader = new LoaderOverlay(this);
-    this.registry.set('loader', loader);
-
+    this.scene.launch('LoaderScene');
     this.scene.start('InitScene');
   }
 }

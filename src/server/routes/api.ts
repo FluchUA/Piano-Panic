@@ -1,29 +1,133 @@
 import { Hono } from 'hono';
 import { context, redis, reddit } from '@devvit/web/server';
-import { ShopItem, AppMode } from '../../shared/api';
+import { createPost } from '../core/post';
+import { AppMode, InstrumentId, PianoEventType, ShopItem } from '../../shared/api';
 import type {
-    ErrorResponse,
-    UserResponse,
-    PostInfoResponse,
     BuyItemResponse,
-    UserTracksResponse,
-    SaveTrackResponse,
+    DebugNotesResponse,
+    DebugResetShopResponse,
+    ErrorResponse,
+    ListenTrackResponse,
+    PianoEvent,
+    PostInfoResponse,
     PublishTrackResponse,
-    SubmitRatingResponse,
     RemoveTrackResponse,
+    SaveTrackResponse,
+    SubmitRatingResponse,
+    TrackModel,
+    UserResponse,
+    UserTracksResponse,
 } from '../../shared/api';
 
 export const api = new Hono();
 
-const BASE_DURATION = 30; 
-const MAX_DURATION = 300; // MAX 5 min
+const BASE_DURATION = 30;
+const MAX_DURATION = 300;
 const RATING_REWARD = 5;
 const PUBLISH_REWARD = 20;
+const DEBUG_NOTES_STEP = 25;
 
-const ITEM_PRICES = {
-    [ShopItem.ORGAN]: 150,
-    [ShopItem.PIANO]: 300,
-    [ShopItem.TIME_PLUS_5]: 50
+const ITEM_PRICES: Record<ShopItem, number> = {
+    [ShopItem.TIME_PLUS_5]: 1,
+    [ShopItem.SYNTH_PIANO]: 1,
+    [ShopItem.ORGAN]: 1,
+    [ShopItem.RETRO]: 1,
+    [ShopItem.ELECTRO]: 1,
+};
+
+const SHOP_INSTRUMENTS = [
+    ShopItem.SYNTH_PIANO,
+    ShopItem.ORGAN,
+    ShopItem.RETRO,
+    ShopItem.ELECTRO,
+];
+
+const isShopInstrument = (value: string): value is ShopItem => (
+    SHOP_INSTRUMENTS.some((item) => item === value)
+);
+
+const isPianoEventType = (value: unknown): value is PianoEventType => (
+    typeof value === 'string' && Object.values(PianoEventType).some((type) => type === value)
+);
+
+const isPianoEventValue = (value: unknown): value is string | number | boolean => (
+    ['string', 'number', 'boolean'].includes(typeof value)
+);
+
+const parsePurchasedItems = (raw: string | undefined): ShopItem[] => {
+    if (!raw) return [];
+
+    return raw
+        .split(',')
+        .filter(isShopInstrument);
+};
+
+const averageRating = (totalRating: number, ratingCount: number) => (
+    ratingCount > 0 ? Number((totalRating / ratingCount).toFixed(1)) : 0
+);
+
+const getTrackStats = async (trackId: string) => {
+    const stats = await redis.hGetAll(`trackStats:${trackId}`);
+    const totalRating = Number(stats?.totalRating ?? 0);
+    const ratingCount = Number(stats?.ratingCount ?? 0);
+    const listenerCount = Number(stats?.listenerCount ?? 0);
+
+    return {
+        averageRating: averageRating(totalRating, ratingCount),
+        ratingCount,
+        listenerCount,
+        totalRating,
+    };
+};
+
+const normalizeTimeline = (timeline: unknown): PianoEvent[] => {
+    if (!Array.isArray(timeline)) return [];
+
+    return timeline
+        .map((event) => {
+            if (!event || typeof event !== 'object') return null;
+
+            const time = Reflect.get(event, 'time');
+            const type = Reflect.get(event, 'type');
+            const value = Reflect.get(event, 'value');
+            if (typeof time !== 'number' || !isPianoEventType(type) || !isPianoEventValue(value)) return null;
+
+            return {
+                time,
+                type,
+                value,
+            };
+        })
+        .filter((event) => event !== null);
+};
+
+const normalizeTrack = async (raw: string): Promise<TrackModel> => {
+    const parsed = JSON.parse(raw);
+    const id = String(parsed.id ?? '');
+    const stats = await getTrackStats(id);
+    const timeline = normalizeTimeline(parsed.timeline);
+    const noteCount = Number(parsed.noteCount ?? timeline.filter((event) => event.type === PianoEventType.NoteOn).length);
+
+    return {
+        id,
+        userId: String(parsed.userId ?? ''),
+        name: String(parsed.name ?? 'Untitled Tune'),
+        timeline,
+        instrumentId: String(parsed.instrumentId ?? InstrumentId.DEFAULT_PIANO),
+        createdAt: Number(parsed.createdAt ?? Date.now()),
+        durationMs: Number(parsed.durationMs ?? 0),
+        noteCount,
+        isPublished: Boolean(parsed.isPublished),
+        averageRating: stats.averageRating,
+        ratingCount: stats.ratingCount,
+        listenerCount: stats.listenerCount,
+        postId: parsed.postId ? String(parsed.postId) : undefined,
+        publishedAt: parsed.publishedAt ? Number(parsed.publishedAt) : undefined,
+    };
+};
+
+const saveTrackModel = async (track: TrackModel) => {
+    await redis.set(track.id, JSON.stringify(track));
 };
 
 /////////////////////////////////////////////
@@ -34,22 +138,14 @@ api.get('/get-user', async (c) => {
     if (!userId) return c.json<ErrorResponse>({ status: 'error', message: 'User not found' }, 400);
 
     const userData = await reddit.getCurrentUser();
-
     const userDetails = await redis.hGetAll(`userDetails:${userId}`);
-
-    const purchasedItemsRaw = userDetails?.purchasedItems ?? '';
-    const purchasedItems = purchasedItemsRaw 
-        ? (purchasedItemsRaw.split(',') as ShopItem[]) 
-        : [];
-
-    const maxTrackDuration = Number(userDetails?.maxTrackDuration ?? BASE_DURATION);
 
     return c.json<UserResponse>({
         id: userId,
         name: userData?.username ?? 'Anonymous Whistler',
         notes: Number(userDetails?.notes ?? 0),
-        purchasedItems,
-        maxTrackDuration,
+        purchasedItems: parsePurchasedItems(userDetails?.purchasedItems),
+        maxTrackDuration: Number(userDetails?.maxTrackDuration ?? BASE_DURATION),
     });
 });
 
@@ -59,39 +155,35 @@ api.get('/get-user', async (c) => {
 api.get('/post-info', async (c) => {
     const { userId, postId } = context;
     if (!userId) return c.json<ErrorResponse>({ status: 'error', message: 'Unauthorized' }, 401);
-    if (!postId) return c.json<PostInfoResponse>({ mode: AppMode.HUB }); 
+    if (!postId) return c.json<PostInfoResponse>({ mode: AppMode.HUB });
 
-    // If the post has been opened but there is no riddle there
     const riddleRaw = await redis.hGetAll(`riddle:${postId}`);
-    if (!riddleRaw || !riddleRaw.trackId) {
+    if (!riddleRaw?.trackId) {
         return c.json<PostInfoResponse>({ mode: AppMode.HUB });
     }
 
-    // Get the track by ID
-    const trackRaw = await redis.get(`track:${riddleRaw.trackId}`);    
+    const trackRaw = await redis.get(riddleRaw.trackId);
     if (!trackRaw) {
         return c.json<ErrorResponse>({ status: 'error', message: 'Track asset missing' }, 404);
     }
 
-    // Check whether the user has already voted (check for the presence of a field in the post's response hash)
-    const track = JSON.parse(trackRaw);
-    const userVote = await redis.hGet(`riddleVotes:${postId}`, userId) ?? null;
-
-    // Calculate the average rating based on total score and total votes count
-    const totalRating = Number(riddleRaw.totalRating ?? 0);
-    const ratingCount = Number(riddleRaw.ratingCount ?? 0);
-    const averageRating = ratingCount > 0 ? Number((totalRating / ratingCount).toFixed(1)) : 0;
+    const track = await normalizeTrack(trackRaw);
+    const userVote = await redis.hGet(`trackVotes:${track.id}`, userId);
+    const hasListened = Boolean(await redis.hGet(`trackListeners:${track.id}`, userId));
 
     return c.json<PostInfoResponse>({
         mode: AppMode.RATE,
         riddleData: {
             track,
-            averageRating,
-            ratingCount,
+            averageRating: track.averageRating,
+            ratingCount: track.ratingCount,
+            listenerCount: track.listenerCount,
+            hasListened,
             userVote: userVote ? Number(userVote) : null,
+            isAuthor: track.userId === userId,
             authorName: riddleRaw.authorName ?? 'Unknown Maestro',
-            authorNotes: Number(riddleRaw.authorNotes ?? 0)
-        }
+            authorNotes: Number(riddleRaw.authorNotes ?? 0),
+        },
     });
 });
 
@@ -102,9 +194,11 @@ api.post('/buy-item', async (c) => {
     const { userId } = context;
     if (!userId) return c.json<ErrorResponse>({ status: 'error', message: 'Unauthorized' }, 401);
 
-    const { itemId } = await c.req.json();
-    const price = ITEM_PRICES[itemId as ShopItem] || 99999;
+    const body = await c.req.json<{ itemId?: string }>();
+    const itemId = Object.values(ShopItem).find((candidate) => candidate === body.itemId);
+    if (!itemId) return c.json<ErrorResponse>({ status: 'error', message: 'Unknown shop item' }, 400);
 
+    const price = ITEM_PRICES[itemId];
     const userDetails = await redis.hGetAll(`userDetails:${userId}`);
     const currentNotes = Number(userDetails?.notes ?? 0);
 
@@ -112,47 +206,42 @@ api.post('/buy-item', async (c) => {
         return c.json<ErrorResponse>({ status: 'error', message: 'Not enough notes!' }, 400);
     }
 
-    // Logic for bulk time purchases
     if (itemId === ShopItem.TIME_PLUS_5) {
         const currentDuration = Number(userDetails?.maxTrackDuration ?? BASE_DURATION);
-        
         if (currentDuration >= MAX_DURATION) {
             return c.json<ErrorResponse>({ status: 'error', message: 'Max duration (5 min) already reached!' }, 400);
         }
 
-        const newDuration = currentDuration + 5;
+        const newDuration = Math.min(currentDuration + 5, MAX_DURATION);
 
         await Promise.all([
             redis.hIncrBy(`userDetails:${userId}`, 'notes', -price),
-            redis.hSet(`userDetails:${userId}`, { maxTrackDuration: String(newDuration) })
+            redis.hSet(`userDetails:${userId}`, { maxTrackDuration: String(newDuration) }),
         ]);
 
-        return c.json<BuyItemResponse>({ 
-            success: true, 
+        return c.json<BuyItemResponse>({
+            success: true,
             updatedNotes: currentNotes - price,
-            updatedDuration: newDuration 
+            updatedDuration: newDuration,
         });
     }
 
-    // Logic for unique instruments (organ, piano)
-    const purchasedItemsRaw = userDetails?.purchasedItems ?? '';
-    const purchasedItems = purchasedItemsRaw ? purchasedItemsRaw.split(',') : [];
-
+    const purchasedItems = parsePurchasedItems(userDetails?.purchasedItems);
     if (purchasedItems.includes(itemId)) {
         return c.json<ErrorResponse>({ status: 'error', message: 'You already own this instrument!' }, 400);
     }
 
-    purchasedItems.push(itemId);
+    const updatedItems = [...purchasedItems, itemId];
 
     await Promise.all([
         redis.hIncrBy(`userDetails:${userId}`, 'notes', -price),
-        redis.hSet(`userDetails:${userId}`, { purchasedItems: purchasedItems.join(',') })
+        redis.hSet(`userDetails:${userId}`, { purchasedItems: updatedItems.join(',') }),
     ]);
 
-    return c.json<BuyItemResponse>({ 
-        success: true, 
+    return c.json<BuyItemResponse>({
+        success: true,
         updatedNotes: currentNotes - price,
-        purchasedItems: purchasedItems as ShopItem[]
+        purchasedItems: updatedItems,
     });
 });
 
@@ -163,24 +252,27 @@ api.get('/user-tracks', async (c) => {
     const { userId } = context;
     if (!userId) return c.json<ErrorResponse>({ status: 'error', message: 'Unauthorized' }, 401);
 
-    const page = parseInt(c.req.query('page') || '1');
-    const limit = parseInt(c.req.query('limit') || '4');
-
-    // Get a list of track IDs from a Sorted Set (from newest to oldest)
+    const page = Math.max(Number.parseInt(c.req.query('page') || '1', 10), 1);
+    const limit = Math.max(Number.parseInt(c.req.query('limit') || '4', 10), 1);
     const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + limit - 1;
-    
-    // Use zRange with the REV option so that the new tracks play first
-    const trackIdsResult = await redis.zRange(`userTracks:${userId}`, startIndex, endIndex, { by: 'rank', reverse: true });
-    const pageIds = trackIdsResult.map(item => item.member);
+    const endIndex = startIndex + limit;
 
-    const tracks = [];
+    const trackIdsResult = await redis.zRange(`userTracks:${userId}`, startIndex, endIndex, { by: 'rank', reverse: true });
+    const trackIds = trackIdsResult.map((item) => item.member);
+    const pageIds = trackIds.slice(0, limit);
+    const tracks: TrackModel[] = [];
+
     for (const id of pageIds) {
-        const t = await redis.get(id);
-        if (t) tracks.push(JSON.parse(t));
+        const trackRaw = await redis.get(id);
+        if (trackRaw) tracks.push(await normalizeTrack(trackRaw));
     }
 
-    return c.json<UserTracksResponse>(tracks);
+    return c.json<UserTracksResponse>({
+        tracks,
+        page,
+        limit,
+        hasNextPage: trackIds.length > limit,
+    });
 });
 
 /////////////////////////////////////////////
@@ -190,14 +282,43 @@ api.post('/save-track', async (c) => {
     const { userId } = context;
     if (!userId) return c.json<ErrorResponse>({ status: 'error', message: 'Unauthorized' }, 401);
 
-    const { name, timeline, instrumentId } = await c.req.json();
-    const trackId = `track:${userId}:${Date.now()}`;
+    const body = await c.req.json<{
+        name?: string;
+        timeline?: PianoEvent[];
+        instrumentId?: string;
+        durationMs?: number;
+        noteCount?: number;
+    }>();
 
-    const newTrack = { id: trackId, userId, name, timeline, instrumentId, isPublished: false };
-    await redis.set(trackId, JSON.stringify(newTrack));
+    const now = Date.now();
+    const trackId = `track:${userId}:${now}`;
+    const timeline = normalizeTimeline(body.timeline);
+    const noteCount = Number(body.noteCount ?? timeline.filter((event) => event.type === PianoEventType.NoteOn).length);
 
-    // Add the track ID to the list of user-created tracks
-    await redis.zAdd(`userTracks:${userId}`, { member: trackId, score: Date.now() });
+    const newTrack: TrackModel = {
+        id: trackId,
+        userId,
+        name: body.name?.trim() || 'Untitled Tune',
+        timeline,
+        instrumentId: body.instrumentId || InstrumentId.DEFAULT_PIANO,
+        createdAt: now,
+        durationMs: Number(body.durationMs ?? 0),
+        noteCount,
+        isPublished: false,
+        averageRating: 0,
+        ratingCount: 0,
+        listenerCount: 0,
+    };
+
+    await Promise.all([
+        saveTrackModel(newTrack),
+        redis.zAdd(`userTracks:${userId}`, { member: trackId, score: now }),
+        redis.hSet(`trackStats:${trackId}`, {
+            totalRating: '0',
+            ratingCount: '0',
+            listenerCount: '0',
+        }),
+    ]);
 
     return c.json<SaveTrackResponse>(newTrack);
 });
@@ -209,22 +330,27 @@ api.post('/delete-track', async (c) => {
     const { userId } = context;
     if (!userId) return c.json<ErrorResponse>({ status: 'error', message: 'Unauthorized' }, 401);
 
-    const { trackId } = await c.req.json();
-    const trackRaw = await redis.get(trackId);
-    
+    const body = await c.req.json<{ trackId?: string }>();
+    if (!body.trackId) return c.json<ErrorResponse>({ status: 'error', message: 'Track id missing' }, 400);
+
+    const trackRaw = await redis.get(body.trackId);
     if (!trackRaw) {
         return c.json<ErrorResponse>({ status: 'error', message: 'Track not found' }, 404);
     }
 
-    const track = JSON.parse(trackRaw);
-    
+    const track = await normalizeTrack(trackRaw);
+    if (track.userId !== userId) {
+        return c.json<ErrorResponse>({ status: 'error', message: 'You can only delete your own tracks' }, 403);
+    }
+
     if (track.isPublished) {
         return c.json<ErrorResponse>({ status: 'error', message: 'Cannot delete a published track' }, 400);
     }
 
     await Promise.all([
-        redis.del(trackId),
-        redis.zRem(`userTracks:${userId}`, trackId)
+        redis.del(track.id),
+        redis.del(`trackStats:${track.id}`),
+        redis.zRem(`userTracks:${userId}`, [track.id]),
     ]);
 
     return c.json<RemoveTrackResponse>({ success: true });
@@ -234,77 +360,156 @@ api.post('/delete-track', async (c) => {
 // PUBLISH TRACK
 /////////////////////////////////////////////
 api.post('/publish-track', async (c) => {
-    const { userId, postId } = context;
-    if (!userId || !postId) return c.json<ErrorResponse>({ status: 'error', message: 'Context missing' }, 400);
+    const { userId } = context;
+    if (!userId) return c.json<ErrorResponse>({ status: 'error', message: 'Unauthorized' }, 401);
 
-    const { trackId } = await c.req.json();
+    const body = await c.req.json<{ trackId?: string }>();
+    if (!body.trackId) return c.json<ErrorResponse>({ status: 'error', message: 'Track id missing' }, 400);
+
+    const trackRaw = await redis.get(body.trackId);
+    if (!trackRaw) {
+        return c.json<ErrorResponse>({ status: 'error', message: 'Track not found' }, 404);
+    }
+
+    const track = await normalizeTrack(trackRaw);
+    if (track.userId !== userId) {
+        return c.json<ErrorResponse>({ status: 'error', message: 'You can only publish your own tracks' }, 403);
+    }
+
+    if (track.isPublished) {
+        return c.json<ErrorResponse>({ status: 'error', message: 'Track already published' }, 400);
+    }
+
     const userData = await reddit.getCurrentUser();
     const userDetails = await redis.hGetAll(`userDetails:${userId}`);
     const currentNotes = Number(userDetails?.notes ?? 0);
+    const post = await createPost(`ToonTune: ${track.name}`);
+    const updatedTrack: TrackModel = {
+        ...track,
+        isPublished: true,
+        postId: post.id,
+        publishedAt: Date.now(),
+    };
 
-    // Update the status of the track
-    const trackRaw = await redis.get(trackId);
-    if (trackRaw) {
-        const track = JSON.parse(trackRaw);
-        track.isPublished = true;
-        await redis.set(trackId, JSON.stringify(track));
+    await Promise.all([
+        saveTrackModel(updatedTrack),
+        redis.hSet(`riddle:${post.id}`, {
+            trackId: updatedTrack.id,
+            authorName: userData?.username ?? 'Anonymous',
+            authorNotes: String(currentNotes + PUBLISH_REWARD),
+        }),
+        redis.hIncrBy(`userDetails:${userId}`, 'notes', PUBLISH_REWARD),
+    ]);
+
+    return c.json<PublishTrackResponse>({ bonusNotes: PUBLISH_REWARD, postId: post.id });
+});
+
+/////////////////////////////////////////////
+// LISTEN TRACK
+/////////////////////////////////////////////
+api.post('/listen-track', async (c) => {
+    const { userId } = context;
+    if (!userId) return c.json<ErrorResponse>({ status: 'error', message: 'Unauthorized' }, 401);
+
+    const body = await c.req.json<{ trackId?: string }>();
+    if (!body.trackId) return c.json<ErrorResponse>({ status: 'error', message: 'Track id missing' }, 400);
+
+    const alreadyListened = await redis.hGet(`trackListeners:${body.trackId}`, userId);
+    if (!alreadyListened) {
+        await Promise.all([
+            redis.hSet(`trackListeners:${body.trackId}`, { [userId]: '1' }),
+            redis.hIncrBy(`trackStats:${body.trackId}`, 'listenerCount', 1),
+        ]);
     }
 
-    // Put the riddle in a post hash
-    await redis.hSet(`riddle:${postId}`, {
-        trackId: trackId,
-        totalRating: '0',
-        ratingCount: '0',
-        authorName: userData?.username ?? 'Anonymous',
-        authorNotes: String(currentNotes + PUBLISH_REWARD) 
+    const stats = await getTrackStats(body.trackId);
+
+    return c.json<ListenTrackResponse>({
+        hasListened: true,
+        listenerCount: stats.listenerCount,
     });
-
-    // Add notes to the author's profile
-    await redis.hIncrBy(`userDetails:${userId}`, 'notes', PUBLISH_REWARD);
-
-    return c.json<PublishTrackResponse>({ bonusNotes: PUBLISH_REWARD });
 });
 
 /////////////////////////////////////////////
 // RATE TRACK
 /////////////////////////////////////////////
 api.post('/rate-track', async (c) => {
-    const { userId, postId } = context;
-    if (!userId || !postId) return c.json<ErrorResponse>({ status: 'error', message: 'Context missing' }, 400);
+    const { userId } = context;
+    if (!userId) return c.json<ErrorResponse>({ status: 'error', message: 'Unauthorized' }, 401);
 
-    const { rating } = await c.req.json(); 
-    if (rating < 0 || rating > 10) {
-        return c.json<ErrorResponse>({ status: 'error', message: 'Rating must be between 0 and 10' }, 400);
+    const body = await c.req.json<{ trackId?: string; rating?: number }>();
+    if (!body.trackId) return c.json<ErrorResponse>({ status: 'error', message: 'Track id missing' }, 400);
+
+    const rating = Number(body.rating);
+    if (!Number.isInteger(rating) || rating < 1 || rating > 10) {
+        return c.json<ErrorResponse>({ status: 'error', message: 'Rating must be between 1 and 10' }, 400);
     }
 
-    // Check if the user has replied before
-    const alreadyVoted = await redis.hGet(`riddleVotes:${postId}`, userId);
+    const hasListened = await redis.hGet(`trackListeners:${body.trackId}`, userId);
+    if (!hasListened) {
+        return c.json<ErrorResponse>({ status: 'error', message: 'Listen first, Maestro!' }, 400);
+    }
+
+    const alreadyVoted = await redis.hGet(`trackVotes:${body.trackId}`, userId);
     if (alreadyVoted) {
-        return c.json<ErrorResponse>({ status: 'error', message: 'You already played this record, pal!' }, 400);
+        return c.json<ErrorResponse>({ status: 'error', message: 'You already rated this record, pal!' }, 400);
     }
 
-    const riddle = await redis.hGetAll(`riddle:${postId}`);
-    if (!riddle) return c.json<ErrorResponse>({ status: 'error', message: 'Riddle not found' }, 404);
-
-    // Save the user's selection and increment the vote count for that option
     await Promise.all([
-        redis.hSet(`riddleVotes:${postId}`, { [userId]: String(rating) }),
-        redis.hIncrBy(`riddle:${postId}`, 'totalRating', rating),
-        redis.hIncrBy(`riddle:${postId}`, 'ratingCount', 1),
-        redis.hIncrBy(`userDetails:${userId}`, 'notes', RATING_REWARD)
+        redis.hSet(`trackVotes:${body.trackId}`, { [userId]: String(rating) }),
+        redis.hIncrBy(`trackStats:${body.trackId}`, 'totalRating', rating),
+        redis.hIncrBy(`trackStats:${body.trackId}`, 'ratingCount', 1),
+        redis.hIncrBy(`userDetails:${userId}`, 'notes', RATING_REWARD),
     ]);
 
-    const updatedRiddle = await redis.hGetAll(`riddle:${postId}`);
-
-    // Retrieve the updated vote data to synchronize the interface
-    const totalRating = Number(updatedRiddle?.totalRating ?? 0);
-    const ratingCount = Number(updatedRiddle?.ratingCount ?? 0);
-    const averageRating = ratingCount > 0 ? Number((totalRating / ratingCount).toFixed(1)) : 0;
+    const stats = await getTrackStats(body.trackId);
 
     return c.json<SubmitRatingResponse>({
         rating,
         reward: RATING_REWARD,
-        averageRating,
-        ratingCount
+        averageRating: stats.averageRating,
+        ratingCount: stats.ratingCount,
+    });
+});
+
+/////////////////////////////////////////////
+// DEBUG SHOP HELPERS
+/////////////////////////////////////////////
+api.post('/debug/add-notes', async (c) => {
+    const { userId } = context;
+    if (!userId) return c.json<ErrorResponse>({ status: 'error', message: 'Unauthorized' }, 401);
+
+    const notes = await redis.hIncrBy(`userDetails:${userId}`, 'notes', DEBUG_NOTES_STEP);
+
+    return c.json<DebugNotesResponse>({ notes });
+});
+
+api.post('/debug/remove-notes', async (c) => {
+    const { userId } = context;
+    if (!userId) return c.json<ErrorResponse>({ status: 'error', message: 'Unauthorized' }, 401);
+
+    const userDetails = await redis.hGetAll(`userDetails:${userId}`);
+    const currentNotes = Number(userDetails?.notes ?? 0);
+    const nextNotes = Math.max(currentNotes - DEBUG_NOTES_STEP, 0);
+    await redis.hSet(`userDetails:${userId}`, { notes: String(nextNotes) });
+
+    return c.json<DebugNotesResponse>({ notes: nextNotes });
+});
+
+api.post('/debug/reset-shop', async (c) => {
+    const { userId } = context;
+    if (!userId) return c.json<ErrorResponse>({ status: 'error', message: 'Unauthorized' }, 401);
+
+    const userDetails = await redis.hGetAll(`userDetails:${userId}`);
+    const notes = Number(userDetails?.notes ?? 0);
+    await redis.hSet(`userDetails:${userId}`, {
+        purchasedItems: '',
+        maxTrackDuration: String(BASE_DURATION),
+    });
+
+    return c.json<DebugResetShopResponse>({
+        notes,
+        purchasedItems: [],
+        maxTrackDuration: BASE_DURATION,
     });
 });
