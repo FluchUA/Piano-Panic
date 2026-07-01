@@ -171,7 +171,7 @@ export class RateTrackScene extends Scene {
     private updateStatsText() {
         this.statsText.setText([
             `Total Listeners: ${this.listenerCount}`,
-            `Average Rating: ${Math.round(this.averageRating)} (${this.ratingCount})`,
+            `Average Rating: ${Math.round(this.averageRating)}`,
         ].join('\n'));
 
         if (this.isAuthor) {
@@ -189,7 +189,7 @@ export class RateTrackScene extends Scene {
 
     private getAuthorIntroText() {
         return [
-            `Now presenting ${getPrestigeTitle(this.authorNotes)} ${this.authorName}`,
+            `${getPrestigeTitle(this.authorNotes)} - ${this.authorName}`,
             `Wealth: ${formatNotes(this.authorNotes)} Golden Notes`,
         ].join('\n');
     }
