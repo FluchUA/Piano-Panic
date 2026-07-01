@@ -73,6 +73,7 @@ const SHOP_INSTRUMENTS: Record<ShopItem, InstrumentOption | null> = {
 
 const NOTE_RELEASE_SECONDS = 0.42;
 const PLAYBACK_RELEASE_TAIL_MS = 700;
+const METRONOME_INTERVAL_MS = 500;
 
 export class PianoScene extends Scene {
     private mode: PianoMode = 'compose';
@@ -124,6 +125,8 @@ export class PianoScene extends Scene {
     private currentOctaveOffset = 0;
     private metronomeEnabled = false;
     private metronomeTimer?: Phaser.Time.TimerEvent;
+    private metronomeBeat = 0;
+    private metronomeClickSynth?: Tone.Synth;
     private timeTimer?: Phaser.Time.TimerEvent;
 
     private playbackOffsetMs = 0;
@@ -892,28 +895,58 @@ export class PianoScene extends Scene {
         this.updateStatus();
     }
 
-    private toggleMetronome() {
+    private async toggleMetronome() {
         if (this.mode !== 'compose') return;
 
         this.metronomeEnabled = !this.metronomeEnabled;
         this.metronomeButton?.setLabel(this.metronomeEnabled ? 'METRO ON' : 'METRONOME');
 
         if (this.metronomeEnabled) {
+            await this.ensureAudioReady();
+            this.ensureMetronomeClickSynth();
+            this.metronomeBeat = 0;
+            this.playMetronomeClick();
             this.metronomeTimer = this.time.addEvent({
-                delay: 500,
+                delay: METRONOME_INTERVAL_MS,
                 loop: true,
                 callback: () => {
+                    this.playMetronomeClick();
                     this.metronomeButton?.setScale(1.08);
                     this.time.delayedCall(80, () => this.metronomeButton?.setScale(1));
                 },
             });
         } else {
             this.metronomeTimer?.remove(false);
+            this.metronomeButton?.setScale(1);
         }
 
         if (this.isRecording && this.recordStartedAt !== null) {
             this.recordEvent(PianoEventType.MetronomeToggle, this.metronomeEnabled);
         }
+    }
+
+    private ensureMetronomeClickSynth() {
+        if (this.metronomeClickSynth) return;
+
+        this.metronomeClickSynth = new Tone.Synth({
+            oscillator: { type: 'triangle' },
+            envelope: {
+                attack: 0.001,
+                decay: 0.035,
+                sustain: 0,
+                release: 0.035,
+                releaseCurve: 'exponential',
+            },
+            volume: -18,
+        }).toDestination();
+    }
+
+    private playMetronomeClick() {
+        if (!this.metronomeClickSynth) return;
+
+        const isTick = this.metronomeBeat % 2 === 0;
+        this.metronomeClickSynth.triggerAttackRelease(isTick ? 'C6' : 'G5', '32n', undefined, isTick ? 0.42 : 0.32);
+        this.metronomeBeat += 1;
     }
 
     private isPedalActive() {
@@ -1193,6 +1226,7 @@ export class PianoScene extends Scene {
         this.timeTimer?.remove(false);
         this.metronomeTimer?.remove(false);
         this.stopPlayback();
+        this.metronomeClickSynth?.dispose();
         this.synth?.dispose();
     }
 }
