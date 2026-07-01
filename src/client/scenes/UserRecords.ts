@@ -3,6 +3,7 @@ import { ConfirmDialog } from '../UI/ConfirmDialog';
 import { InfoDialog } from '../UI/InfoDialog';
 import { ToonButton } from '../UI/ToonButton';
 import { RedditAPI } from '../utils/RedditAPI';
+import { PUBLISH_REWARD } from '../../shared/economy';
 import type { TrackModel, UserResponse } from '../../shared/api';
 
 type TrackRowView = {
@@ -210,7 +211,7 @@ export class UserRecordsScene extends Scene {
             fontSize: 18,
             onClick: () => this.confirmDialog.open({
                 title: 'PUBLISH RECORD?',
-                message: 'After publishing, this tune stays in post history, cannot be deleted, and pays a 20 note reward.',
+                message: `After publishing, this tune stays in post history, cannot be deleted, and pays a ${PUBLISH_REWARD} note reward.`,
                 confirmLabel: 'Publish',
                 onConfirm: async () => {
                     try {
@@ -264,7 +265,7 @@ export class UserRecordsScene extends Scene {
             day: 'numeric',
         });
 
-        return `${date} | ${track.averageRating.toFixed(1)} avg | ${track.listenerCount} plays`;
+        return `${date} | ${Math.round(track.averageRating)} avg | ${track.listenerCount} plays`;
     }
 
     private refreshLayout() {

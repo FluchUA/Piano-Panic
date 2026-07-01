@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { context, redis, reddit } from '@devvit/web/server';
 import { createPost } from '../core/post';
 import { AppMode, InstrumentId, PianoEventType, ShopItem } from '../../shared/api';
+import { PUBLISH_REWARD, RATING_REWARD, SHOP_ITEM_PRICES } from '../../shared/economy';
 import type {
     BuyItemResponse,
     DebugNotesResponse,
@@ -23,17 +24,7 @@ export const api = new Hono();
 
 const BASE_DURATION = 30;
 const MAX_DURATION = 300;
-const RATING_REWARD = 5;
-const PUBLISH_REWARD = 20;
 const DEBUG_NOTES_STEP = 25;
-
-const ITEM_PRICES: Record<ShopItem, number> = {
-    [ShopItem.TIME_PLUS_5]: 1,
-    [ShopItem.SYNTH_PIANO]: 1,
-    [ShopItem.ORGAN]: 1,
-    [ShopItem.RETRO]: 1,
-    [ShopItem.ELECTRO]: 1,
-};
 
 const SHOP_INSTRUMENTS = [
     ShopItem.SYNTH_PIANO,
@@ -170,6 +161,8 @@ api.get('/post-info', async (c) => {
     const track = await normalizeTrack(trackRaw);
     const userVote = await redis.hGet(`trackVotes:${track.id}`, userId);
     const hasListened = Boolean(await redis.hGet(`trackListeners:${track.id}`, userId));
+    const authorDetails = await redis.hGetAll(`userDetails:${track.userId}`);
+    const authorNotes = Number(authorDetails?.notes ?? riddleRaw.authorNotes ?? 0);
 
     return c.json<PostInfoResponse>({
         mode: AppMode.RATE,
@@ -182,7 +175,7 @@ api.get('/post-info', async (c) => {
             userVote: userVote ? Number(userVote) : null,
             isAuthor: track.userId === userId,
             authorName: riddleRaw.authorName ?? 'Unknown Maestro',
-            authorNotes: Number(riddleRaw.authorNotes ?? 0),
+            authorNotes,
         },
     });
 });
@@ -198,7 +191,7 @@ api.post('/buy-item', async (c) => {
     const itemId = Object.values(ShopItem).find((candidate) => candidate === body.itemId);
     if (!itemId) return c.json<ErrorResponse>({ status: 'error', message: 'Unknown shop item' }, 400);
 
-    const price = ITEM_PRICES[itemId];
+    const price = SHOP_ITEM_PRICES[itemId];
     const userDetails = await redis.hGetAll(`userDetails:${userId}`);
     const currentNotes = Number(userDetails?.notes ?? 0);
 

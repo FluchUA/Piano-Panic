@@ -5,6 +5,7 @@ import { ConfirmDialog } from '../UI/ConfirmDialog';
 import { InfoDialog } from '../UI/InfoDialog';
 import { RedditAPI } from '../utils/RedditAPI';
 import { ShopItem } from '../../shared/api';
+import { SHOP_ITEM_PRICES } from '../../shared/economy';
 import type { UserResponse } from '../../shared/api';
 
 type ShopEntry = {
@@ -22,11 +23,11 @@ type ShopItemView = {
 };
 
 const SHOP_ITEMS: ShopEntry[] = [
-    { id: ShopItem.TIME_PLUS_5, title: '+5 SEC', price: 1 },
-    { id: ShopItem.SYNTH_PIANO, title: 'SYNTH', price: 1 },
-    { id: ShopItem.ORGAN, title: 'ORGAN', price: 1 },
-    { id: ShopItem.RETRO, title: 'RETRO', price: 1 },
-    { id: ShopItem.ELECTRO, title: 'ELECTRO', price: 1 },
+    { id: ShopItem.TIME_PLUS_5, title: '+5 SEC', price: SHOP_ITEM_PRICES[ShopItem.TIME_PLUS_5] },
+    { id: ShopItem.RETRO, title: 'RETRO', price: SHOP_ITEM_PRICES[ShopItem.RETRO] },
+    { id: ShopItem.ELECTRO, title: 'ELECTRO', price: SHOP_ITEM_PRICES[ShopItem.ELECTRO] },
+    { id: ShopItem.SYNTH_PIANO, title: 'SYNTH', price: SHOP_ITEM_PRICES[ShopItem.SYNTH_PIANO] },
+    { id: ShopItem.ORGAN, title: 'ORGAN', price: SHOP_ITEM_PRICES[ShopItem.ORGAN] },
 ];
 
 export class ShopScene extends Scene {
@@ -221,7 +222,7 @@ export class ShopScene extends Scene {
     }
 
     private getItemButtonLabel(item: ShopEntry) {
-        return this.isItemOwned(item) ? 'SOLD' : `${item.price} NOTE`;
+        return this.isItemOwned(item) ? 'SOLD' : `${item.price} NOTES`;
     }
 
     private isItemOwned(item: ShopEntry) {

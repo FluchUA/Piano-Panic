@@ -2,12 +2,14 @@ import Phaser, { Scene } from 'phaser';
 
 import { CurrencyWidget } from '../UI/CurrencyWidget';
 import { ToonButton } from '../UI/ToonButton';
+import { getPrestigeTitle } from '../../shared/economy';
 import type { UserResponse } from '../../shared/api';
 
 export class MainMenu extends Scene {
   private background!: Phaser.GameObjects.Image;
   private titleMain!: Phaser.GameObjects.Text;
   private titleSub!: Phaser.GameObjects.Text;
+  private prestigeText!: Phaser.GameObjects.Text;
 
   private btnCompose!: ToonButton;
   private btnRecords!: ToonButton;
@@ -35,9 +37,17 @@ export class MainMenu extends Scene {
       align: 'center',
     }).setOrigin(0.5);
 
-    this.titleSub = this.add.text(0, 0, 'Welcome, Maestro!', {
+    this.titleSub = this.add.text(0, 0, `Welcome, ${user?.name ?? 'Maestro'}!`, {
       fontSize: '22px',
       color: '#fff4c2',
+      stroke: '#2f2118',
+      strokeThickness: 4,
+    }).setOrigin(0.5);
+
+    this.prestigeText = this.add.text(0, 0, `Prestige: ${getPrestigeTitle(user?.notes ?? 0)}`, {
+      fontSize: '20px',
+      color: '#f8d66d',
+      fontStyle: 'bold',
       stroke: '#2f2118',
       strokeThickness: 4,
     }).setOrigin(0.5);
@@ -103,15 +113,18 @@ export class MainMenu extends Scene {
     this.titleMain.setPosition(width / 2, height * 0.14);
     this.titleMain.setFontSize(Math.max(30, Math.min(48, width * 0.055)));
     this.titleMain.setWordWrapWidth(Math.max(190, Math.min(300, width * 0.64)));
-    this.titleSub.setPosition(width / 2, height * 0.24);
+    this.titleSub.setPosition(width / 2, height * 0.23);
+    this.titleSub.setWordWrapWidth(width * 0.78);
+    this.prestigeText.setPosition(width / 2, height * 0.29);
+    this.prestigeText.setWordWrapWidth(width * 0.78);
 
     this.btnCompose.resize(buttonWidth, buttonHeight, 20);
     this.btnRecords.resize(buttonWidth, buttonHeight, 20);
     this.btnShop.resize(buttonWidth, buttonHeight, 20);
 
-    this.btnCompose.setPosition(width / 2, height * 0.43);
-    this.btnRecords.setPosition(width / 2, height * 0.56);
-    this.btnShop.setPosition(width / 2, height * 0.69);
+    this.btnCompose.setPosition(width / 2, height * 0.45);
+    this.btnRecords.setPosition(width / 2, height * 0.58);
+    this.btnShop.setPosition(width / 2, height * 0.71);
 
     this.currency.setPosition(width - 112, 40);
   }

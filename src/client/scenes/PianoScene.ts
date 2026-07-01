@@ -6,6 +6,7 @@ import { SaveTrackDialog } from '../UI/SaveTrackDialog';
 import { ToonButton } from '../UI/ToonButton';
 import { RedditAPI } from '../utils/RedditAPI';
 import { InstrumentId, PianoEventType, ShopItem } from '../../shared/api';
+import { PUBLISH_REWARD } from '../../shared/economy';
 import type { PianoEvent, TrackModel, UserResponse } from '../../shared/api';
 import {
     AUDIO_SAMPLE_ASSETS,
@@ -70,6 +71,9 @@ const SHOP_INSTRUMENTS: Record<ShopItem, InstrumentOption | null> = {
     [ShopItem.ELECTRO]: { id: InstrumentId.ELECTRO, name: 'ELECTRO' },
 };
 
+const NOTE_RELEASE_SECONDS = 0.42;
+const PLAYBACK_RELEASE_TAIL_MS = 700;
+
 export class PianoScene extends Scene {
     private mode: PianoMode = 'compose';
     private returnScene = 'MainMenu';
@@ -80,6 +84,7 @@ export class PianoScene extends Scene {
     private instrumentReady: Promise<void> = Promise.resolve();
     private currentInstrument: InstrumentId = InstrumentId.DEFAULT_PIANO;
     private activeNotes: Record<string, string> = {};
+    private sustainedNotes = new Set<string>();
     private triggeredInputs = new Set<string>();
     private keyVisuals = new Map<string, Phaser.GameObjects.Rectangle>();
     private heldSidePedals = new Set<string>();
@@ -376,13 +381,6 @@ export class PianoScene extends Scene {
                 0xffffff
             ).setOrigin(0).setStrokeStyle(2, 0x2f2118);
 
-            const label = this.add.text(
-                startX + index * whiteKeyWidth + whiteKeyWidth / 2,
-                startY + whiteKeyHeight - 24,
-                note,
-                { color: '#2f2118', fontSize: '18px', fontStyle: 'bold' }
-            ).setOrigin(0.5);
-
             if (this.mode === 'compose') {
                 key.setInteractive({ useHandCursor: true });
                 key.on('pointerdown', () => {
@@ -393,7 +391,7 @@ export class PianoScene extends Scene {
             }
 
             this.keyVisuals.set(note, key);
-            this.pianoGroup.add([key, label]);
+            this.pianoGroup.add(key);
         });
 
         BLACK_NOTES.forEach(({ note, afterWhiteIndex }) => {
@@ -659,7 +657,7 @@ export class PianoScene extends Scene {
             });
             this.track = savedTrack;
             this.updateTrackActionButtons();
-            this.dialog.open('Saved! Publish it later to earn 20 notes, or keep it as a draft.');
+            this.dialog.open(`Saved! Publish it later to earn ${PUBLISH_REWARD} notes, or keep it as a draft.`);
         } catch (error) {
             if (error instanceof Error) throw error;
             throw new Error('Save failed', { cause: error });
@@ -683,7 +681,7 @@ export class PianoScene extends Scene {
 
         this.confirmDialog.open({
             title: 'PUBLISH RECORD?',
-            message: 'After publishing, this tune stays in post history, cannot be deleted from your list, and pays a 20 note reward.',
+            message: `After publishing, this tune stays in post history, cannot be deleted from your list, and pays a ${PUBLISH_REWARD} note reward.`,
             confirmLabel: 'Publish',
             onConfirm: async () => {
                 await this.publishCurrentTrack();
@@ -765,6 +763,7 @@ export class PianoScene extends Scene {
 
         const fullNote = `${noteName}${4 + this.currentOctaveOffset}`;
         this.activeNotes[inputId] = fullNote;
+        this.releaseSustainedNote(fullNote);
         this.highlightKey(noteName, true);
 
         if (this.isRecording) {
@@ -793,8 +792,11 @@ export class PianoScene extends Scene {
         delete this.activeNotes[inputId];
         if (!this.triggeredInputs.has(inputId)) return;
 
-        const release = this.isPedalActive() ? '2.5' : '0.1';
-        this.synth.triggerRelease(fullNote, `+${release}`);
+        if (this.isPedalActive()) {
+            this.sustainedNotes.add(fullNote);
+        } else {
+            this.releaseNote(fullNote);
+        }
         this.triggeredInputs.delete(inputId);
     }
 
@@ -869,6 +871,7 @@ export class PianoScene extends Scene {
         }
 
         const isActive = this.isPedalActive();
+        if (wasActive && !isActive) this.releaseSustainedNotes();
         if (wasActive !== isActive && this.isRecording && this.recordStartedAt !== null) {
             this.recordEvent(PianoEventType.PedalToggle, isActive);
         }
@@ -881,6 +884,7 @@ export class PianoScene extends Scene {
         const wasActive = this.isPedalActive();
         this.bottomPedalEnabled = !this.bottomPedalEnabled;
         const isActive = this.isPedalActive();
+        if (wasActive && !isActive) this.releaseSustainedNotes();
         if (wasActive !== isActive && this.isRecording && this.recordStartedAt !== null) {
             this.recordEvent(PianoEventType.PedalToggle, isActive);
         }
@@ -963,7 +967,7 @@ export class PianoScene extends Scene {
             });
 
         const duration = Math.max(this.track.durationMs - this.playbackOffsetMs, 0);
-        const finishTimer = this.time.delayedCall(duration + 120, () => {
+        const finishTimer = this.time.delayedCall(duration + PLAYBACK_RELEASE_TAIL_MS, () => {
             this.stopPlayback();
             this.playbackOffsetMs = 0;
             this.playButton?.setLabel('PLAY');
@@ -1006,6 +1010,7 @@ export class PianoScene extends Scene {
 
     private applyPlaybackEvent(event: PianoEvent) {
         if (event.type === PianoEventType.NoteOn && typeof event.value === 'string') {
+            this.releaseSustainedNote(event.value);
             this.synth.triggerAttack(event.value);
             this.activeNotes[`playback:${event.value}`] = event.value;
             this.highlightKey(this.getNoteName(event.value), true);
@@ -1013,14 +1018,20 @@ export class PianoScene extends Scene {
         }
 
         if (event.type === PianoEventType.NoteOff && typeof event.value === 'string') {
-            this.synth.triggerRelease(event.value, this.playbackPedalActive ? '+2.5' : '+0.1');
+            if (this.playbackPedalActive) {
+                this.sustainedNotes.add(event.value);
+            } else {
+                this.releaseNote(event.value);
+            }
             delete this.activeNotes[`playback:${event.value}`];
             this.highlightKey(this.getNoteName(event.value), false);
             return;
         }
 
         if (event.type === PianoEventType.PedalToggle && typeof event.value === 'boolean') {
+            const wasActive = this.playbackPedalActive;
             this.playbackPedalActive = event.value;
+            if (wasActive && !this.playbackPedalActive) this.releaseSustainedNotes();
             this.bottomPedalButton?.setLabel(event.value ? 'SUSTAIN ON' : 'SUSTAIN');
         }
     }
@@ -1029,14 +1040,31 @@ export class PianoScene extends Scene {
         Object.keys(this.activeNotes).forEach((key) => {
             const note = this.activeNotes[key];
             if (note) {
-                if (this.triggeredInputs.has(key)) {
-                    this.synth.triggerRelease(note, '+0.1');
-                    this.triggeredInputs.delete(key);
-                }
+                this.releaseNote(note);
+                this.triggeredInputs.delete(key);
                 this.highlightKey(this.getNoteName(note), false);
             }
             delete this.activeNotes[key];
         });
+        this.releaseSustainedNotes();
+    }
+
+    private releaseSustainedNotes() {
+        this.sustainedNotes.forEach((note) => {
+            this.releaseNote(note);
+        });
+        this.sustainedNotes.clear();
+    }
+
+    private releaseSustainedNote(note: string) {
+        if (!this.sustainedNotes.has(note)) return;
+
+        this.releaseNote(note);
+        this.sustainedNotes.delete(note);
+    }
+
+    private releaseNote(note: string) {
+        this.synth.triggerRelease(note);
     }
 
     private highlightKey(noteName: string, isDown: boolean) {
@@ -1086,6 +1114,7 @@ export class PianoScene extends Scene {
                 this.instrumentReady = Promise.resolve();
                 this.synth = new Tone.Sampler({
                     urls: preloadedSamples,
+                    release: NOTE_RELEASE_SECONDS,
                 }).toDestination();
                 return;
             }
@@ -1094,6 +1123,7 @@ export class PianoScene extends Scene {
                 const sampler = new Tone.Sampler({
                     urls: this.getFallbackSampleUrls(instrument),
                     baseUrl: `./assets/audio/${instrument === InstrumentId.DEFAULT_PIANO ? 'piano' : 'organ'}/`,
+                    release: NOTE_RELEASE_SECONDS,
                     onload: resolve,
                 }).toDestination();
 
@@ -1104,16 +1134,28 @@ export class PianoScene extends Scene {
 
         this.instrumentReady = Promise.resolve();
         if (instrument === InstrumentId.ELECTRO) {
-            this.synth = new Tone.PolySynth(Tone.FMSynth).toDestination();
+            const synth = new Tone.PolySynth(Tone.FMSynth).toDestination();
+            synth.set({
+                envelope: { attack: 0.01, decay: 0.12, sustain: 0.55, release: NOTE_RELEASE_SECONDS, releaseCurve: 'exponential' },
+            });
+            this.synth = synth;
             return;
         }
 
         if (instrument === InstrumentId.RETRO) {
-            this.synth = new Tone.PolySynth(Tone.MonoSynth).toDestination();
+            const synth = new Tone.PolySynth(Tone.MonoSynth).toDestination();
+            synth.set({
+                envelope: { attack: 0.01, decay: 0.12, sustain: 0.55, release: NOTE_RELEASE_SECONDS, releaseCurve: 'exponential' },
+            });
+            this.synth = synth;
             return;
         }
 
-        this.synth = new Tone.PolySynth(Tone.Synth).toDestination();
+        const synth = new Tone.PolySynth(Tone.Synth).toDestination();
+        synth.set({
+            envelope: { attack: 0.01, decay: 0.12, sustain: 0.55, release: NOTE_RELEASE_SECONDS, releaseCurve: 'exponential' },
+        });
+        this.synth = synth;
     }
 
     private getPreloadedSampleBuffers(instrument: SampledInstrumentId): Record<string, AudioBuffer> | null {

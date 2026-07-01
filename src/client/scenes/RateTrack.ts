@@ -3,12 +3,14 @@ import { InfoDialog } from '../UI/InfoDialog';
 import { ToonButton } from '../UI/ToonButton';
 import { RedditAPI } from '../utils/RedditAPI';
 import { AppMode } from '../../shared/api';
+import { formatNotes, getPrestigeTitle } from '../../shared/economy';
 import type { PostInfoResponse, TrackModel } from '../../shared/api';
 
 export class RateTrackScene extends Scene {
     private background!: Phaser.GameObjects.Image;
     private title!: Phaser.GameObjects.Text;
     private subtitle!: Phaser.GameObjects.Text;
+    private authorIntroText!: Phaser.GameObjects.Text;
     private statsText!: Phaser.GameObjects.Text;
     private helperText!: Phaser.GameObjects.Text;
     private backButton?: ToonButton;
@@ -22,6 +24,8 @@ export class RateTrackScene extends Scene {
     private listenerCount = 0;
     private averageRating = 0;
     private ratingCount = 0;
+    private authorName = 'Unknown Maestro';
+    private authorNotes = 0;
     private resizeHandler = () => this.refreshLayout();
 
     constructor() {
@@ -42,6 +46,8 @@ export class RateTrackScene extends Scene {
         this.listenerCount = post.riddleData.listenerCount;
         this.averageRating = post.riddleData.averageRating;
         this.ratingCount = post.riddleData.ratingCount;
+        this.authorName = post.riddleData.authorName;
+        this.authorNotes = post.riddleData.authorNotes;
 
         this.background = this.add.image(0, 0, 'background').setOrigin(0);
         this.dialog = new InfoDialog({ scene: this });
@@ -63,6 +69,16 @@ export class RateTrackScene extends Scene {
             align: 'center',
             wordWrap: { width: 560 },
         }).setOrigin(0.5);
+
+        this.authorIntroText = this.add.text(0, 0, this.getAuthorIntroText(), {
+            fontSize: '18px',
+            color: '#fff4c2',
+            fontStyle: 'bold',
+            stroke: '#2f2118',
+            strokeThickness: 4,
+            align: 'center',
+            wordWrap: { width: 520 },
+        }).setOrigin(0.5).setVisible(!this.isAuthor);
 
         this.statsText = this.add.text(0, 0, '', {
             fontSize: '22px',
@@ -155,7 +171,7 @@ export class RateTrackScene extends Scene {
     private updateStatsText() {
         this.statsText.setText([
             `Total Listeners: ${this.listenerCount}`,
-            `Average Rating: ${this.averageRating.toFixed(1)} (${this.ratingCount})`,
+            `Average Rating: ${Math.round(this.averageRating)} (${this.ratingCount})`,
         ].join('\n'));
 
         if (this.isAuthor) {
@@ -169,6 +185,13 @@ export class RateTrackScene extends Scene {
         }
 
         this.helperText.setText(this.hasListened ? 'Pick your score!' : 'Shhh... Quiet on set! Listen first!');
+    }
+
+    private getAuthorIntroText() {
+        return [
+            `Now presenting ${getPrestigeTitle(this.authorNotes)} ${this.authorName}`,
+            `Wealth: ${formatNotes(this.authorNotes)} Golden Notes`,
+        ].join('\n');
     }
 
     private updateRatingButtons() {
@@ -207,19 +230,22 @@ export class RateTrackScene extends Scene {
         const gridCols = 5;
         const gap = Math.max(10, Math.min(18, width * 0.018));
         const startX = width / 2 - ((gridCols - 1) * (76 + gap)) / 2;
-        const startY = height * 0.34;
+        const startY = height * 0.37;
 
         this.cameras.resize(width, height);
         this.background.setDisplaySize(width, height);
         this.backButton?.setPosition(76, 44);
         this.title.setPosition(width / 2, Math.max(52, height * 0.09));
         this.title.setWordWrapWidth(Math.max(180, Math.min(300, width * 0.72)));
-        this.subtitle.setPosition(width / 2, height * 0.21);
+        this.authorIntroText.setVisible(!this.isAuthor);
+        this.authorIntroText.setPosition(width / 2, height * 0.22);
+        this.authorIntroText.setWordWrapWidth(width * 0.78);
+        this.subtitle.setPosition(width / 2, this.isAuthor ? height * 0.23 : height * 0.32);
         this.subtitle.setWordWrapWidth(width * 0.76);
-        this.statsText.setPosition(width / 2, this.isAuthor ? height * 0.4 : height * 0.64);
-        this.helperText.setPosition(width / 2, this.isAuthor ? height * 0.54 : height * 0.76);
+        this.statsText.setPosition(width / 2, this.isAuthor ? height * 0.42 : height * 0.68);
+        this.helperText.setPosition(width / 2, this.isAuthor ? height * 0.56 : height * 0.79);
         this.helperText.setWordWrapWidth(width * 0.76);
-        this.listenButton.setPosition(width / 2, this.isAuthor ? height * 0.7 : height * 0.86);
+        this.listenButton.setPosition(width / 2, this.isAuthor ? height * 0.74 : height * 0.9);
 
         this.ratingButtons.forEach((button, index) => {
             const row = Math.floor(index / gridCols);
