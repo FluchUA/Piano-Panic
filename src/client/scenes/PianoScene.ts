@@ -3,10 +3,12 @@ import * as Tone from 'tone';
 import { ConfirmDialog } from '../UI/ConfirmDialog';
 import { InfoDialog } from '../UI/InfoDialog';
 import { SaveTrackDialog } from '../UI/SaveTrackDialog';
-import { ToonButton } from '../UI/ToonButton';
+import { SpriteButton } from '../UI/SpriteButton';
 import { RedditAPI } from '../utils/RedditAPI';
 import { InstrumentId, PianoEventType, ShopItem } from '../../shared/api';
 import { PUBLISH_REWARD } from '../../shared/economy';
+import { coverSceneBackground } from '../utils/sceneBackground';
+import { getInstrumentMiniTexture } from '../utils/instrumentMiniatures';
 import type { PianoEvent, TrackModel, UserResponse } from '../../shared/api';
 import {
     AUDIO_SAMPLE_ASSETS,
@@ -35,8 +37,16 @@ type InstrumentOption = {
 };
 
 type HoldControl = {
-    container: Phaser.GameObjects.Container;
-    background: Phaser.GameObjects.Rectangle;
+    button: SpriteButton;
+};
+
+type PianoKeyTier = 'down' | 'middle' | 'up';
+
+type PianoKeyColor = 'white' | 'black';
+
+type PianoKeyVisual = {
+    sprite: Phaser.GameObjects.Sprite;
+    color: PianoKeyColor;
 };
 
 const WHITE_NOTES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
@@ -47,6 +57,9 @@ const BLACK_NOTES = [
     { note: 'G#', afterWhiteIndex: 4 },
     { note: 'A#', afterWhiteIndex: 5 },
 ];
+
+const WHITE_KEY_FRAME = { width: 71, height: 124 };
+const BLACK_KEY_FRAME = { width: 40, height: 62 };
 
 const KEYBOARD_MAP: Record<string, string> = {
     Z: 'C',
@@ -71,9 +84,17 @@ const SHOP_INSTRUMENTS: Record<ShopItem, InstrumentOption | null> = {
     [ShopItem.ELECTRO]: { id: InstrumentId.ELECTRO, name: 'ELECTRO' },
 };
 
+const INSTRUMENT_BACKGROUND_ANIMS: Record<InstrumentId, string> = {
+    [InstrumentId.DEFAULT_PIANO]: 'instrument_bg_piano',
+    [InstrumentId.SYNTH_PIANO]: 'instrument_bg_synth',
+    [InstrumentId.ORGAN]: 'instrument_bg_organ',
+    [InstrumentId.RETRO]: 'instrument_bg_retro',
+    [InstrumentId.ELECTRO]: 'instrument_bg_electro',
+};
+
 const NOTE_RELEASE_SECONDS = 0.42;
 const PLAYBACK_RELEASE_TAIL_MS = 700;
-const METRONOME_INTERVAL_MS = 500;
+const METRONOME_FRAME_MS = 125;
 
 export class PianoScene extends Scene {
     private mode: PianoMode = 'compose';
@@ -87,29 +108,30 @@ export class PianoScene extends Scene {
     private activeNotes: Record<string, string> = {};
     private sustainedNotes = new Set<string>();
     private triggeredInputs = new Set<string>();
-    private keyVisuals = new Map<string, Phaser.GameObjects.Rectangle>();
-    private heldSidePedals = new Set<string>();
+    private keyVisuals = new Map<string, PianoKeyVisual>();
+    private pressedKeyVisuals = new Set<string>();
     private octaveHolds = new Map<string, number>();
 
     private background!: Phaser.GameObjects.Image;
     private title!: Phaser.GameObjects.Text;
     private timeText!: Phaser.GameObjects.Text;
     private pianoGroup!: Phaser.GameObjects.Container;
+    private pianoBackground: Phaser.GameObjects.Sprite | undefined;
     private instrumentGroup!: Phaser.GameObjects.Container;
     private dialog!: InfoDialog;
     private confirmDialog!: ConfirmDialog;
     private saveDialog!: SaveTrackDialog;
 
-    private backButton!: ToonButton;
-    private infoButton!: ToonButton;
-    private recordButton?: ToonButton;
-    private saveButton?: ToonButton;
-    private bottomPedalButton?: ToonButton;
-    private metronomeButton?: ToonButton;
-    private playButton?: ToonButton;
-    private restartButton?: ToonButton;
-    private publishButton?: ToonButton;
-    private deleteTrackButton?: ToonButton;
+    private backButton!: SpriteButton;
+    private infoButton!: SpriteButton;
+    private recordButton?: SpriteButton;
+    private saveButton?: SpriteButton;
+    private bottomPedalButton: Phaser.GameObjects.Sprite | undefined;
+    private metronomeSprite: Phaser.GameObjects.Sprite | undefined;
+    private playButton?: SpriteButton;
+    private restartButton?: SpriteButton;
+    private publishButton?: SpriteButton;
+    private deleteTrackButton?: SpriteButton;
 
     private isRecording = false;
     private recordingStopped = false;
@@ -124,8 +146,9 @@ export class PianoScene extends Scene {
     private bottomPedalEnabled = false;
     private currentOctaveOffset = 0;
     private metronomeEnabled = false;
-    private metronomeTimer?: Phaser.Time.TimerEvent;
+    private metronomeTimer: Phaser.Time.TimerEvent | undefined;
     private metronomeBeat = 0;
+    private metronomeFrameStep = 0;
     private metronomeClickSynth?: Tone.Synth;
     private timeTimer?: Phaser.Time.TimerEvent;
 
@@ -152,14 +175,15 @@ export class PianoScene extends Scene {
         this.changeInstrument(this.currentInstrument);
         this.input.addPointer(5);
 
-        this.background = this.add.image(0, 0, 'background').setOrigin(0);
+        this.background = this.add.image(0, 0, 'create_record_bg').setOrigin(0);
+
         this.pianoGroup = this.add.container(0, 0);
         this.instrumentGroup = this.add.container(0, 0);
         this.dialog = new InfoDialog({ scene: this });
         this.confirmDialog = new ConfirmDialog({ scene: this });
         this.saveDialog = new SaveTrackDialog({ scene: this });
 
-        this.title = this.add.text(0, 0, this.mode === 'compose' ? 'COMPOSE A TUNE' : 'LISTENING BOOTH', {
+        this.title = this.add.text(0, 0, this.mode === 'compose' ? 'COMPOSE\nA TUNE' : 'LISTENING BOOTH', {
             fontSize: '38px',
             color: '#ffffff',
             fontStyle: 'bold',
@@ -195,50 +219,54 @@ export class PianoScene extends Scene {
     }
 
     private createTopControls() {
-        this.backButton = new ToonButton({
+        this.backButton = new SpriteButton({
             scene: this,
             x: 0,
             y: 0,
-            width: 52,
-            height: 42,
-            label: '<',
-            fontSize: 22,
+            size: 70,
+            backgroundTexture: 'middle_round_button_bg',
+            backgroundAnimation: 'middle_round_button_bg_active',
+            iconTexture: 'middle_round_back_icon',
+            iconAnimation: 'middle_round_back_icon_active',
             onClick: () => this.handleBack(),
         });
 
-        this.infoButton = new ToonButton({
+        this.infoButton = new SpriteButton({
             scene: this,
             x: 0,
             y: 0,
-            width: 46,
-            height: 42,
-            label: 'i',
-            fontSize: 20,
+            size: 70,
+            backgroundTexture: 'middle_round_button_bg',
+            backgroundAnimation: 'middle_round_button_bg_active',
+            iconTexture: 'middle_round_info_icon',
+            iconAnimation: 'middle_round_info_icon_active',
             onClick: () => this.openInfo(),
         });
     }
 
     private createModeControls() {
         if (this.mode === 'compose') {
-            this.recordButton = new ToonButton({
+            this.recordButton = new SpriteButton({
                 scene: this,
                 x: 0,
                 y: 0,
-                width: 54,
-                height: 44,
-                label: 'REC',
-                fontSize: 13,
+                size: 58,
+                backgroundTexture: 'small_round_button_bg',
+                backgroundAnimation: 'small_round_button_bg_active',
+                iconTexture: 'small_round_record_icon',
+                iconAnimation: 'small_round_record_icon_active',
                 onClick: () => this.handleRecordButton(),
             });
 
-            this.saveButton = new ToonButton({
+            this.saveButton = new SpriteButton({
                 scene: this,
                 x: 0,
                 y: 0,
-                width: 48,
-                height: 44,
-                label: 'S',
-                fontSize: 18,
+                size: 58,
+                backgroundTexture: 'small_round_button_bg',
+                backgroundAnimation: 'small_round_button_bg_active',
+                iconTexture: 'small_round_save_icon',
+                iconAnimation: 'small_round_save_icon_active',
                 onClick: () => this.saveTrack(),
             });
 
@@ -246,49 +274,55 @@ export class PianoScene extends Scene {
             return;
         }
 
-        this.playButton = new ToonButton({
+        this.playButton = new SpriteButton({
             scene: this,
             x: 0,
             y: 0,
-            width: 54,
-            height: 44,
-            label: '||',
-            fontSize: 18,
+            size: 58,
+            backgroundTexture: 'small_round_button_bg',
+            backgroundAnimation: 'small_round_button_bg_active',
+            iconTexture: 'small_round_play_icon',
+            iconAnimation: 'small_round_play_icon_active',
             onClick: () => this.togglePlayback(),
         });
 
-        this.restartButton = new ToonButton({
+        this.restartButton = new SpriteButton({
             scene: this,
             x: 0,
             y: 0,
-            width: 54,
-            height: 44,
-            label: 'R',
-            fontSize: 18,
+            size: 58,
+            backgroundTexture: 'small_round_button_bg',
+            backgroundAnimation: 'small_round_button_bg_active',
+            iconTexture: 'small_round_replay_icon',
+            iconAnimation: 'small_round_replay_icon_active',
             onClick: () => this.restartPlayback(),
         });
     }
 
     private createTrackActionButtons() {
-        this.publishButton = new ToonButton({
+        this.publishButton = new SpriteButton({
             scene: this,
             x: 0,
             y: 0,
-            width: 48,
-            height: 42,
-            label: '^',
-            fontSize: 18,
+            size: 50,
+            backgroundTexture: 'small_square_button_bg',
+            backgroundAnimation: 'small_square_button_bg_active',
+            backgroundDisabledFrame: 3,
+            iconTexture: 'small_square_done_icon',
+            iconAnimation: 'small_square_done_icon_active',
             onClick: () => this.confirmPublishTrack(),
         });
 
-        this.deleteTrackButton = new ToonButton({
+        this.deleteTrackButton = new SpriteButton({
             scene: this,
             x: 0,
             y: 0,
-            width: 48,
-            height: 42,
-            label: 'X',
-            fontSize: 17,
+            size: 50,
+            backgroundTexture: 'small_square_button_bg',
+            backgroundAnimation: 'small_square_button_bg_active',
+            backgroundDisabledFrame: 3,
+            iconTexture: 'small_square_remove_icon',
+            iconAnimation: 'small_square_remove_icon_active',
             onClick: () => this.confirmDeleteTrack(),
         });
     }
@@ -297,14 +331,15 @@ export class PianoScene extends Scene {
         this.instrumentGroup.removeAll(true);
 
         this.getAvailableInstruments().forEach((instrument) => {
-            const button = new ToonButton({
+            const miniTexture = getInstrumentMiniTexture(instrument.id);
+            const button = new SpriteButton({
                 scene: this,
                 x: 0,
                 y: 0,
-                width: 42,
-                height: 38,
-                label: this.getInstrumentLabel(instrument),
-                fontSize: 14,
+                size: 50,
+                backgroundTexture: miniTexture,
+                backgroundAnimation: `${miniTexture}_active`,
+                backgroundDisabledFrame: 8,
                 onClick: () => {
                     this.changeInstrument(instrument.id);
                     this.createInstrumentButtons();
@@ -322,67 +357,92 @@ export class PianoScene extends Scene {
         const titleWidth = Math.max(150, Math.min(260, width - 150));
 
         this.cameras.resize(width, height);
-        this.background.setDisplaySize(width, height);
+        coverSceneBackground(this.background, width, height);
         this.title.setPosition(width / 2, titleY);
         this.title.setFontSize(Math.max(26, Math.min(38, width * 0.046)));
         this.title.setWordWrapWidth(titleWidth);
-        this.backButton.setPosition(38, 42);
-        this.infoButton.setPosition(width - 38, 42);
+        this.backButton.setPosition(42, 42);
+        this.infoButton.setPosition(width - 42, 42);
 
         if (this.mode === 'compose') {
-            this.timeText.setPosition(width / 2, titleY + 122);
-            this.recordButton?.setPosition(38, 92);
-            this.saveButton?.setPosition(width - 38, 92);
-            this.layoutInstrumentButtons(width, titleY + 62);
+            this.saveButton?.setPosition(width - 34, 112);
+            this.recordButton?.setPosition(width - 34, 176);
+            const instrumentBottom = this.layoutInstrumentButtons(width, titleY + 62);
+            this.timeText.setPosition(width / 2, instrumentBottom + 28);
         } else {
-            this.playButton?.setPosition(width / 2 - 34, titleY + 62);
-            this.restartButton?.setPosition(width / 2 + 34, titleY + 62);
+            this.playButton?.setPosition(width - 34, 112);
+            this.restartButton?.setPosition(width - 34, 176);
         }
 
-        this.publishButton?.setPosition(width - 94, 92);
-        this.deleteTrackButton?.setPosition(width - 150, 92);
+        this.publishButton?.setPosition(width - 34, 238);
+        this.deleteTrackButton?.setPosition(width - 34, 296);
 
         this.drawPianoRig(width, height);
         this.updateTrackActionButtons();
     }
 
     private layoutInstrumentButtons(width: number, y: number) {
-        const buttons = this.instrumentGroup.list.filter((child) => child instanceof ToonButton);
+        const buttons = this.instrumentGroup.list.filter((child) => child instanceof SpriteButton);
+        const buttonSize = 50;
         const gap = 8;
-        const maxButtonsPerRow = Math.max(3, Math.min(5, Math.floor(width / 54)));
-        const rowWidth = Math.min(buttons.length, maxButtonsPerRow) * 50 - gap;
-        const startX = width / 2 - rowWidth / 2 + 21;
+        const maxButtonsPerRow = buttons.length <= 3 ? Math.max(1, buttons.length) : 3;
+        const rowStep = buttonSize + 6;
 
         buttons.forEach((button, index) => {
             const row = Math.floor(index / maxButtonsPerRow);
             const col = index % maxButtonsPerRow;
-            button.setPosition(startX + col * 50, y + row * 42);
+            const rowStartIndex = row * maxButtonsPerRow;
+            const itemsInRow = Math.min(maxButtonsPerRow, buttons.length - rowStartIndex);
+            const rowWidth = itemsInRow * buttonSize + (itemsInRow - 1) * gap;
+            const startX = width / 2 - rowWidth / 2 + buttonSize / 2;
+            button.setPosition(startX + col * (buttonSize + gap), y + row * rowStep);
         });
+
+        const rowCount = Math.max(1, Math.ceil(buttons.length / maxButtonsPerRow));
+        return y + (rowCount - 1) * rowStep + buttonSize / 2;
     }
 
     private drawPianoRig(width: number, height: number) {
         this.pianoGroup.removeAll(true);
         this.keyVisuals.clear();
+        this.pressedKeyVisuals.clear();
+        this.metronomeSprite = undefined;
+        this.bottomPedalButton = undefined;
+        this.pianoBackground = undefined;
 
-        const sideWidth = Math.max(54, Math.min(76, width * 0.08));
-        const availablePianoWidth = width - sideWidth * 2 - 32;
-        const whiteKeyWidth = Math.min(74, availablePianoWidth / WHITE_NOTES.length);
-        const whiteKeyHeight = Math.max(150, Math.min(height * 0.38, 260));
+        const pianoBackground = this.add.sprite(0, 0, 'piano_hold_bg');
+        const pianoBackgroundHeight = height * 0.55;
+        const pianoBackgroundScale = pianoBackgroundHeight / (pianoBackground.height || 1);
+        const pianoBackgroundWidth = pianoBackground.width * pianoBackgroundScale;
+        const bottomControlGap = 10;
+        const bottomControlHeight = 42;
+        const bottomMargin = -28;
+        const pianoBackgroundY = height - bottomMargin - bottomControlHeight - bottomControlGap - pianoBackgroundHeight / 2;
+        const pianoBackgroundBottom = pianoBackgroundY + pianoBackgroundHeight / 2;
+        const availableKeyWidth = Math.min(width * 0.96, pianoBackgroundWidth * 0.9);
+        const whiteKeyScale = availableKeyWidth / (WHITE_NOTES.length * WHITE_KEY_FRAME.width);
+        const whiteKeyWidth = WHITE_KEY_FRAME.width * whiteKeyScale;
+        const whiteKeyHeight = WHITE_KEY_FRAME.height * whiteKeyScale;
         const pianoWidth = whiteKeyWidth * WHITE_NOTES.length;
         const startX = width / 2 - pianoWidth / 2;
-        const startY = height - whiteKeyHeight - 70;
+        const keyVerticalOffset = pianoBackgroundHeight * 0.12;
+        const startY = pianoBackgroundY - whiteKeyHeight / 2 + keyVerticalOffset;
 
-        this.createSideControls(startX - sideWidth / 2 - 12, startY + whiteKeyHeight / 2);
-        this.createSideControls(startX + pianoWidth + sideWidth / 2 + 12, startY + whiteKeyHeight / 2);
+        pianoBackground.setOrigin(0.5);
+        pianoBackground.setPosition(width / 2, pianoBackgroundY);
+        pianoBackground.setScale(pianoBackgroundScale);
+        this.pianoBackground = pianoBackground;
+        this.updateInstrumentBackgroundVisual();
+        this.pianoGroup.add(pianoBackground);
 
         WHITE_NOTES.forEach((note, index) => {
-            const key = this.add.rectangle(
+            const key = this.add.sprite(
                 startX + index * whiteKeyWidth,
                 startY,
-                whiteKeyWidth - 2,
-                whiteKeyHeight,
-                0xffffff
-            ).setOrigin(0).setStrokeStyle(2, 0x2f2118);
+                this.getKeyTexture('white')
+            ).setOrigin(0);
+            key.setScale(whiteKeyScale);
+            key.play(this.getKeyAnimation('white', false));
 
             if (this.mode === 'compose') {
                 key.setInteractive({ useHandCursor: true });
@@ -393,17 +453,18 @@ export class PianoScene extends Scene {
                 key.on('pointerout', () => this.stopNote(`pointer:${note}`));
             }
 
-            this.keyVisuals.set(note, key);
+            this.keyVisuals.set(note, { sprite: key, color: 'white' });
             this.pianoGroup.add(key);
         });
 
         BLACK_NOTES.forEach(({ note, afterWhiteIndex }) => {
             const blackWidth = whiteKeyWidth * 0.62;
-            const blackHeight = whiteKeyHeight * 0.58;
+            const blackKeyScale = blackWidth / BLACK_KEY_FRAME.width;
             const x = startX + (afterWhiteIndex + 1) * whiteKeyWidth - blackWidth / 2;
-            const key = this.add.rectangle(x, startY, blackWidth, blackHeight, 0x17110d)
-                .setOrigin(0)
-                .setStrokeStyle(2, 0xf8d66d);
+            const key = this.add.sprite(x, startY, this.getKeyTexture('black'))
+                .setOrigin(0);
+            key.setScale(blackKeyScale);
+            key.play(this.getKeyAnimation('black', false));
 
             if (this.mode === 'compose') {
                 key.setInteractive({ useHandCursor: true });
@@ -414,92 +475,93 @@ export class PianoScene extends Scene {
                 key.on('pointerout', () => this.stopNote(`pointer:${note}`));
             }
 
-            this.keyVisuals.set(note, key);
+            this.keyVisuals.set(note, { sprite: key, color: 'black' });
             this.pianoGroup.add(key);
         });
 
-        this.metronomeButton = new ToonButton({
-            scene: this,
-            x: width / 2,
-            y: startY - 58,
-            width: 170,
-            height: 42,
-            label: this.metronomeEnabled ? 'METRO ON' : 'METRONOME',
-            fontSize: 14,
-            onClick: () => this.toggleMetronome(),
-        });
-        this.metronomeButton.setDisabled(this.mode === 'playback');
-        this.pianoGroup.add(this.metronomeButton);
+        const bottomControlY = pianoBackgroundBottom - bottomControlHeight * 0.4;
+        const octaveControlY = Math.min(bottomControlY + 8, height - 33);
 
-        this.bottomPedalButton = new ToonButton({
-            scene: this,
-            x: width / 2,
-            y: startY + whiteKeyHeight + 34,
-            width: 180,
-            height: 42,
-            label: this.bottomPedalEnabled ? 'SUSTAIN ON' : 'SUSTAIN',
-            fontSize: 14,
-            onClick: () => this.toggleBottomPedal(),
-        });
-        this.bottomPedalButton.setDisabled(this.mode === 'playback');
-        this.pianoGroup.add(this.bottomPedalButton);
-    }
+        if (this.mode === 'compose') {
+            this.createOctaveControls(Math.max(58, startX + 48), octaveControlY, 'left');
+            this.createOctaveControls(Math.min(width - 58, startX + pianoWidth - 48), octaveControlY, 'right');
 
-    private createSideControls(x: number, centerY: number) {
-        const gap = 56;
-        const up = this.createHoldControl('OCT +', x, centerY - gap, () => this.setOctaveHold(`up:${x}`, 1), () => this.clearOctaveHold(`up:${x}`));
-        const pedal = this.createHoldControl('PEDAL', x, centerY, () => this.setSidePedal(`pedal:${x}`, true), () => this.setSidePedal(`pedal:${x}`, false));
-        const down = this.createHoldControl('OCT -', x, centerY + gap, () => this.setOctaveHold(`down:${x}`, -1), () => this.clearOctaveHold(`down:${x}`));
-
-        if (this.mode === 'playback') {
-            up.background.disableInteractive();
-            pedal.background.disableInteractive();
-            down.background.disableInteractive();
-            up.container.setAlpha(0.55);
-            pedal.container.setAlpha(0.55);
-            down.container.setAlpha(0.55);
+            this.metronomeSprite = this.add.sprite(34, 142, 'metronome')
+                .setOrigin(0.5);
+            this.updateMetronomeVisual();
+            this.metronomeSprite.setInteractive({ useHandCursor: true });
+            this.metronomeSprite.on('pointerdown', () => {
+                void this.toggleMetronome();
+            });
+            this.pianoGroup.add(this.metronomeSprite);
         }
 
-        this.pianoGroup.add([up.container, pedal.container, down.container]);
+        if (this.supportsSustainPedal()) {
+            this.bottomPedalButton = this.add.sprite(width / 2, bottomControlY - 5, 'sustain')
+                .setOrigin(0.5);
+            this.updateSustainPedalVisual(this.mode === 'playback' ? this.playbackPedalActive : this.bottomPedalEnabled);
+
+            if (this.mode === 'compose') {
+                this.bottomPedalButton.setInteractive({ useHandCursor: true });
+                this.bottomPedalButton.on('pointerdown', () => this.toggleBottomPedal());
+            }
+
+            this.pianoGroup.add(this.bottomPedalButton);
+        } else {
+            this.bottomPedalButton = undefined;
+        }
+    }
+
+    private updateInstrumentBackgroundVisual() {
+        if (!this.pianoBackground) return;
+
+        const animationKey = INSTRUMENT_BACKGROUND_ANIMS[this.currentInstrument];
+        if (this.anims.exists(animationKey)) this.pianoBackground.play(animationKey, true);
+    }
+
+    private createOctaveControls(x: number, y: number, side: string) {
+        const gap = 32;
+        const down = this.createHoldControl(
+            x - gap,
+            y,
+            false,
+            () => this.setOctaveHold(`${side}:down`, -1),
+            () => this.clearOctaveHold(`${side}:down`)
+        );
+        const up = this.createHoldControl(
+            x + gap,
+            y,
+            true,
+            () => this.setOctaveHold(`${side}:up`, 1),
+            () => this.clearOctaveHold(`${side}:up`)
+        );
+
+        this.pianoGroup.add([down.button, up.button]);
     }
 
     private createHoldControl(
-        label: string,
         x: number,
         y: number,
+        flipX: boolean,
         onDown: () => void,
         onUp: () => void
     ): HoldControl {
-        const width = 66;
-        const height = 42;
-        const container = this.add.container(x, y);
-        const background = this.add.rectangle(0, 0, width, height, 0xf8d66d)
-            .setStrokeStyle(3, 0x2f2118);
-        const text = this.add.text(0, 0, label, {
-            color: '#2f2118',
-            fontSize: '12px',
-            fontStyle: 'bold',
-            align: 'center',
-        }).setOrigin(0.5);
-
-        container.add([background, text]);
-        container.setSize(width, height);
-        background.setInteractive({ useHandCursor: true });
-        background.on('pointerdown', () => {
-            background.setFillStyle(0xffec99);
-            onDown();
+        const button = new SpriteButton({
+            scene: this,
+            x,
+            y,
+            size: 50,
+            backgroundTexture: 'small_square_button_bg',
+            backgroundAnimation: 'small_square_button_bg_active',
+            backgroundDisabledFrame: 3,
+            iconTexture: 'small_square_oct_icon',
+            iconAnimation: 'small_square_oct_icon_active',
+            flipX,
+            onPress: onDown,
+            onRelease: onUp,
         });
 
-        const release = () => {
-            background.setFillStyle(0xf8d66d);
-            onUp();
-        };
-
-        background.on('pointerup', release);
-        background.on('pointerout', release);
-        background.on('pointerupoutside', release);
-
-        return { container, background };
+        return { button };
     }
 
     private setupKeyboardInput() {
@@ -518,7 +580,6 @@ export class PianoScene extends Scene {
 
             if (keyName === 'Q') this.setOctaveHold('keyboard:Q', -1);
             if (keyName === 'E') this.setOctaveHold('keyboard:E', 1);
-            if (keyName === 'W') this.setSidePedal('keyboard:W', true);
             if (keyName === ' ') this.toggleBottomPedal();
         });
 
@@ -534,7 +595,6 @@ export class PianoScene extends Scene {
 
             if (keyName === 'Q') this.clearOctaveHold('keyboard:Q');
             if (keyName === 'E') this.clearOctaveHold('keyboard:E');
-            if (keyName === 'W') this.setSidePedal('keyboard:W', false);
         });
     }
 
@@ -564,7 +624,7 @@ export class PianoScene extends Scene {
             this.dialog.open(`
                 Hit RECORD, play the keys, then SAVE.
                 Save checks for at least 10 piano key presses.
-                Q/E shift octaves, W holds the side pedal, Space toggles sustain.
+                Q/E shift octaves, Space toggles piano sustain.
             `);
             return;
         }
@@ -598,7 +658,7 @@ export class PianoScene extends Scene {
         this.recordingElapsedMs = 0;
         this.isRecording = true;
         this.recordingStopped = false;
-        this.recordButton?.setLabel('STOP');
+        this.setRecordButtonIcon('small_round_stop_icon');
         this.timeTimer?.remove(false);
         this.timeTimer = this.time.addEvent({
             delay: 100,
@@ -617,7 +677,7 @@ export class PianoScene extends Scene {
         this.isRecording = false;
         this.recordingStopped = true;
         this.timeTimer?.remove(false);
-        this.recordButton?.setLabel('CLEAR');
+        this.setRecordButtonIcon('small_round_remove_icon');
         this.updateStatus();
     }
 
@@ -631,7 +691,7 @@ export class PianoScene extends Scene {
         this.recordingStopped = false;
         this.lastRecordSignature = '';
         this.lastRecordTime = -1;
-        this.recordButton?.setLabel('RECORD');
+        this.setRecordButtonIcon('small_round_record_icon');
         this.updateStatus();
     }
 
@@ -671,12 +731,12 @@ export class PianoScene extends Scene {
         return 'Toon Tune';
     }
 
-    private getInstrumentLabel(instrument: InstrumentOption) {
-        if (instrument.id === InstrumentId.DEFAULT_PIANO) return 'P';
-        if (instrument.id === InstrumentId.SYNTH_PIANO) return 'S';
-        if (instrument.id === InstrumentId.ORGAN) return 'O';
-        if (instrument.id === InstrumentId.RETRO) return 'R';
-        return 'E';
+    private setRecordButtonIcon(texture: string) {
+        this.recordButton?.setIcon(texture, `${texture}_active`);
+    }
+
+    private setPlayButtonIcon(texture: string) {
+        this.playButton?.setIcon(texture, `${texture}_active`);
     }
 
     private confirmPublishTrack() {
@@ -839,6 +899,7 @@ export class PianoScene extends Scene {
 
         this.octaveHolds.set(source, offset);
         this.currentOctaveOffset = this.resolveOctaveOffset();
+        this.refreshKeyAnimations();
         if (this.isRecording && this.recordStartedAt !== null) {
             this.recordEvent(PianoEventType.OctaveSet, this.currentOctaveOffset);
         }
@@ -850,6 +911,7 @@ export class PianoScene extends Scene {
 
         this.octaveHolds.delete(source);
         this.currentOctaveOffset = this.resolveOctaveOffset();
+        this.refreshKeyAnimations();
         if (this.isRecording && this.recordStartedAt !== null) {
             this.recordEvent(PianoEventType.OctaveSet, this.currentOctaveOffset);
         }
@@ -863,26 +925,8 @@ export class PianoScene extends Scene {
         return 0;
     }
 
-    private setSidePedal(source: string, isDown: boolean) {
-        if (this.mode !== 'compose') return;
-
-        const wasActive = this.isPedalActive();
-        if (isDown) {
-            this.heldSidePedals.add(source);
-        } else {
-            this.heldSidePedals.delete(source);
-        }
-
-        const isActive = this.isPedalActive();
-        if (wasActive && !isActive) this.releaseSustainedNotes();
-        if (wasActive !== isActive && this.isRecording && this.recordStartedAt !== null) {
-            this.recordEvent(PianoEventType.PedalToggle, isActive);
-        }
-        this.updateStatus();
-    }
-
     private toggleBottomPedal() {
-        if (this.mode !== 'compose') return;
+        if (this.mode !== 'compose' || !this.supportsSustainPedal()) return;
 
         const wasActive = this.isPedalActive();
         this.bottomPedalEnabled = !this.bottomPedalEnabled;
@@ -891,7 +935,7 @@ export class PianoScene extends Scene {
         if (wasActive !== isActive && this.isRecording && this.recordStartedAt !== null) {
             this.recordEvent(PianoEventType.PedalToggle, isActive);
         }
-        this.bottomPedalButton?.setLabel(this.bottomPedalEnabled ? 'SUSTAIN ON' : 'SUSTAIN');
+        this.updateSustainPedalVisual(this.bottomPedalEnabled);
         this.updateStatus();
     }
 
@@ -899,29 +943,40 @@ export class PianoScene extends Scene {
         if (this.mode !== 'compose') return;
 
         this.metronomeEnabled = !this.metronomeEnabled;
-        this.metronomeButton?.setLabel(this.metronomeEnabled ? 'METRO ON' : 'METRONOME');
-
-        if (this.metronomeEnabled) {
-            await this.ensureAudioReady();
-            this.ensureMetronomeClickSynth();
-            this.metronomeBeat = 0;
-            this.playMetronomeClick();
-            this.metronomeTimer = this.time.addEvent({
-                delay: METRONOME_INTERVAL_MS,
-                loop: true,
-                callback: () => {
-                    this.playMetronomeClick();
-                    this.metronomeButton?.setScale(1.08);
-                    this.time.delayedCall(80, () => this.metronomeButton?.setScale(1));
-                },
-            });
-        } else {
-            this.metronomeTimer?.remove(false);
-            this.metronomeButton?.setScale(1);
-        }
+        this.metronomeTimer?.remove(false);
+        this.metronomeTimer = undefined;
+        this.metronomeFrameStep = 0;
+        this.updateMetronomeVisual();
 
         if (this.isRecording && this.recordStartedAt !== null) {
             this.recordEvent(PianoEventType.MetronomeToggle, this.metronomeEnabled);
+        }
+
+        if (this.metronomeEnabled) {
+            await this.ensureAudioReady();
+            if (!this.metronomeEnabled) return;
+
+            this.ensureMetronomeClickSynth();
+            this.metronomeBeat = 0;
+            this.metronomeTimer = this.time.addEvent({
+                delay: METRONOME_FRAME_MS,
+                loop: true,
+                callback: () => this.advanceMetronomeFrame(),
+            });
+        }
+    }
+
+    private updateMetronomeVisual() {
+        const metronome = this.metronomeSprite;
+        if (!metronome?.scene || !metronome.active || !metronome.anims) return;
+
+        metronome.play(this.metronomeEnabled ? 'metronome_on' : 'metronome_off', true);
+    }
+
+    private advanceMetronomeFrame() {
+        this.metronomeFrameStep = (this.metronomeFrameStep + 1) % 8;
+        if (this.metronomeFrameStep === 2 || this.metronomeFrameStep === 6) {
+            this.playMetronomeClick();
         }
     }
 
@@ -950,7 +1005,18 @@ export class PianoScene extends Scene {
     }
 
     private isPedalActive() {
-        return this.bottomPedalEnabled || this.heldSidePedals.size > 0;
+        return this.supportsSustainPedal() && this.bottomPedalEnabled;
+    }
+
+    private updateSustainPedalVisual(isEnabled: boolean) {
+        const pedal = this.bottomPedalButton;
+        if (!pedal?.scene || !pedal.active || !pedal.anims) return;
+
+        pedal.play(isEnabled ? 'sustain_on' : 'sustain_off', true);
+    }
+
+    private supportsSustainPedal(instrument = this.currentInstrument) {
+        return instrument === InstrumentId.DEFAULT_PIANO;
     }
 
     private getRecordingElapsedMs() {
@@ -990,7 +1056,7 @@ export class PianoScene extends Scene {
         this.isPlaying = true;
         this.playbackPedalActive = false;
         this.playbackStartedAt = this.time.now;
-        this.playButton?.setLabel('PAUSE');
+        this.setPlayButtonIcon('small_round_pause_icon');
 
         this.track.timeline
             .filter((event) => event.time >= this.playbackOffsetMs)
@@ -1003,7 +1069,7 @@ export class PianoScene extends Scene {
         const finishTimer = this.time.delayedCall(duration + PLAYBACK_RELEASE_TAIL_MS, () => {
             this.stopPlayback();
             this.playbackOffsetMs = 0;
-            this.playButton?.setLabel('PLAY');
+            this.setPlayButtonIcon('small_round_play_icon');
         });
         this.playbackTimers.push(finishTimer);
     }
@@ -1022,7 +1088,7 @@ export class PianoScene extends Scene {
 
         this.playbackOffsetMs += this.time.now - this.playbackStartedAt;
         this.stopPlayback(false);
-        this.playButton?.setLabel('PLAY');
+        this.setPlayButtonIcon('small_round_play_icon');
     }
 
     private restartPlayback() {
@@ -1031,13 +1097,13 @@ export class PianoScene extends Scene {
         void this.startPlayback();
     }
 
-    private stopPlayback(resetOffset = true) {
+    private stopPlayback(resetOffset = true, updateVisuals = true) {
         this.playbackTimers.forEach((timer) => timer.remove(false));
         this.playbackTimers = [];
-        this.releaseAllNotes();
+        this.releaseAllNotes(updateVisuals);
         this.isPlaying = false;
         this.playbackPedalActive = false;
-        this.bottomPedalButton?.setLabel('SUSTAIN');
+        if (updateVisuals) this.updateSustainPedalVisual(false);
         if (resetOffset) this.playbackStartedAt = 0;
     }
 
@@ -1062,20 +1128,25 @@ export class PianoScene extends Scene {
         }
 
         if (event.type === PianoEventType.PedalToggle && typeof event.value === 'boolean') {
+            if (!this.supportsSustainPedal()) {
+                this.playbackPedalActive = false;
+                return;
+            }
+
             const wasActive = this.playbackPedalActive;
             this.playbackPedalActive = event.value;
             if (wasActive && !this.playbackPedalActive) this.releaseSustainedNotes();
-            this.bottomPedalButton?.setLabel(event.value ? 'SUSTAIN ON' : 'SUSTAIN');
+            this.updateSustainPedalVisual(event.value);
         }
     }
 
-    private releaseAllNotes() {
+    private releaseAllNotes(updateVisuals = true) {
         Object.keys(this.activeNotes).forEach((key) => {
             const note = this.activeNotes[key];
             if (note) {
                 this.releaseNote(note);
                 this.triggeredInputs.delete(key);
-                this.highlightKey(this.getNoteName(note), false);
+                if (updateVisuals) this.highlightKey(this.getNoteName(note), false);
             }
             delete this.activeNotes[key];
         });
@@ -1101,10 +1172,42 @@ export class PianoScene extends Scene {
     }
 
     private highlightKey(noteName: string, isDown: boolean) {
-        const key = this.keyVisuals.get(noteName);
-        if (!key) return;
+        const keyVisual = this.keyVisuals.get(noteName);
+        if (!keyVisual) return;
+        if (!keyVisual.sprite.scene || !keyVisual.sprite.active) return;
 
-        key.setAlpha(isDown ? 0.62 : 1);
+        if (isDown) {
+            this.pressedKeyVisuals.add(noteName);
+        } else {
+            this.pressedKeyVisuals.delete(noteName);
+        }
+
+        keyVisual.sprite.play(this.getKeyAnimation(keyVisual.color, isDown), true);
+    }
+
+    private refreshKeyAnimations() {
+        this.keyVisuals.forEach((keyVisual, noteName) => {
+            if (!keyVisual.sprite.scene || !keyVisual.sprite.active) return;
+
+            keyVisual.sprite.play(
+                this.getKeyAnimation(keyVisual.color, this.pressedKeyVisuals.has(noteName)),
+                true
+            );
+        });
+    }
+
+    private getKeyTexture(color: PianoKeyColor) {
+        return `${color}_key_${this.getKeyTier()}`;
+    }
+
+    private getKeyAnimation(color: PianoKeyColor, isPressed: boolean) {
+        return `${this.getKeyTexture(color)}_${isPressed ? 'pressed' : 'idle'}`;
+    }
+
+    private getKeyTier(): PianoKeyTier {
+        if (this.currentOctaveOffset < 0) return 'down';
+        if (this.currentOctaveOffset > 0) return 'up';
+        return 'middle';
     }
 
     private getNoteName(fullNote: string) {
@@ -1138,9 +1241,20 @@ export class PianoScene extends Scene {
     }
 
     private changeInstrument(instrument: InstrumentId) {
+        const wasPedalActive = this.isPedalActive();
+        if (!this.supportsSustainPedal(instrument)) {
+            this.bottomPedalEnabled = false;
+            this.playbackPedalActive = false;
+            this.releaseSustainedNotes();
+            if (wasPedalActive && this.isRecording && this.recordStartedAt !== null) {
+                this.recordEvent(PianoEventType.PedalToggle, false);
+            }
+        }
+
         if (this.synth) this.synth.dispose();
 
         this.currentInstrument = instrument;
+        this.updateInstrumentBackgroundVisual();
         if (isSampledInstrument(instrument)) {
             const preloadedSamples = this.getPreloadedSampleBuffers(instrument);
             if (preloadedSamples) {
@@ -1225,7 +1339,7 @@ export class PianoScene extends Scene {
         this.scale.off('resize', this.resizeHandler);
         this.timeTimer?.remove(false);
         this.metronomeTimer?.remove(false);
-        this.stopPlayback();
+        this.stopPlayback(true, false);
         this.metronomeClickSynth?.dispose();
         this.synth?.dispose();
     }

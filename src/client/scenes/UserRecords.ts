@@ -1,9 +1,10 @@
 import Phaser, { Scene } from 'phaser';
 import { ConfirmDialog } from '../UI/ConfirmDialog';
 import { InfoDialog } from '../UI/InfoDialog';
-import { ToonButton } from '../UI/ToonButton';
+import { SpriteButton } from '../UI/SpriteButton';
 import { RedditAPI } from '../utils/RedditAPI';
 import { PUBLISH_REWARD } from '../../shared/economy';
+import { coverSceneBackground } from '../utils/sceneBackground';
 import type { TrackModel, UserResponse } from '../../shared/api';
 
 type TrackRowView = {
@@ -12,9 +13,9 @@ type TrackRowView = {
     name: Phaser.GameObjects.Text;
     meta: Phaser.GameObjects.Text;
     status: Phaser.GameObjects.Text;
-    playButton: ToonButton;
-    publishButton: ToonButton;
-    deleteButton: ToonButton;
+    playButton: SpriteButton;
+    publishButton: SpriteButton;
+    deleteButton: SpriteButton;
 };
 
 export class UserRecordsScene extends Scene {
@@ -23,9 +24,9 @@ export class UserRecordsScene extends Scene {
     private background!: Phaser.GameObjects.Image;
     private title!: Phaser.GameObjects.Text;
     private emptyText!: Phaser.GameObjects.Text;
-    private backButton!: ToonButton;
-    private prevButton!: ToonButton;
-    private nextButton!: ToonButton;
+    private backButton!: SpriteButton;
+    private prevButton!: SpriteButton;
+    private nextButton!: SpriteButton;
     private infoDialog!: InfoDialog;
     private confirmDialog!: ConfirmDialog;
     private hasNextPage = false;
@@ -45,9 +46,9 @@ export class UserRecordsScene extends Scene {
         this.hasNextPage = false;
         this.rowViews = [];
 
-        this.background = this.add.image(0, 0, 'background').setOrigin(0);
+        this.background = this.add.image(0, 0, 'user_records_bg').setOrigin(0);
 
-        this.title = this.add.text(0, 0, 'MY VINYL RECORDS', {
+        this.title = this.add.text(0, 0, 'MY VINYL\nRECORDS', {
             fontSize: '40px',
             color: '#ffffff',
             fontStyle: 'bold',
@@ -56,14 +57,15 @@ export class UserRecordsScene extends Scene {
             align: 'center',
         }).setOrigin(0.5);
 
-        this.backButton = new ToonButton({
+        this.backButton = new SpriteButton({
             scene: this,
             x: 0,
             y: 0,
-            width: 52,
-            height: 44,
-            label: '<',
-            fontSize: 22,
+            size: 70,
+            backgroundTexture: 'middle_round_button_bg',
+            backgroundAnimation: 'middle_round_button_bg_active',
+            iconTexture: 'middle_round_back_icon',
+            iconAnimation: 'middle_round_back_icon_active',
             onClick: () => {
                 this.scene.start('MainMenu');
             },
@@ -81,14 +83,14 @@ export class UserRecordsScene extends Scene {
         this.infoDialog = new InfoDialog({ scene: this });
         this.confirmDialog = new ConfirmDialog({ scene: this });
 
-        this.prevButton = new ToonButton({
+        this.prevButton = new SpriteButton({
             scene: this,
             x: 0,
             y: 0,
-            width: 54,
-            height: 44,
-            label: '<',
-            fontSize: 20,
+            size: 50,
+            backgroundTexture: 'arrow_button',
+            backgroundAnimation: 'arrow_button_active',
+            backgroundDisabledFrame: 8,
             onClick: () => {
                 if (this.page <= 1) return;
                 this.page -= 1;
@@ -96,14 +98,15 @@ export class UserRecordsScene extends Scene {
             },
         });
 
-        this.nextButton = new ToonButton({
+        this.nextButton = new SpriteButton({
             scene: this,
             x: 0,
             y: 0,
-            width: 54,
-            height: 44,
-            label: '>',
-            fontSize: 20,
+            size: 50,
+            backgroundTexture: 'arrow_button',
+            backgroundAnimation: 'arrow_button_active',
+            backgroundDisabledFrame: 8,
+            flipX: true,
             onClick: () => {
                 if (!this.hasNextPage) return;
                 this.page += 1;
@@ -170,8 +173,7 @@ export class UserRecordsScene extends Scene {
 
     private createTrackRow(track: TrackModel): TrackRowView {
         const row = this.add.container(0, 0);
-        const panel = this.add.rectangle(0, 0, 320, 112, 0x201511, 0.88)
-            .setStrokeStyle(3, 0xf8d66d);
+        const panel = this.add.rectangle(0, 0, 320, 112, 0x150d0a, 0.78);
         const name = this.add.text(0, 0, track.name, {
             fontSize: '20px',
             color: '#f8d66d',
@@ -188,27 +190,31 @@ export class UserRecordsScene extends Scene {
             fontStyle: 'bold',
         }).setOrigin(0, 0.5);
 
-        const playButton = new ToonButton({
+        const playButton = new SpriteButton({
             scene: this,
             x: 0,
             y: 0,
-            width: 42,
-            height: 38,
-            label: '>',
-            fontSize: 18,
+            size: 60,
+            backgroundTexture: 'middle_square_button_bg',
+            backgroundAnimation: 'middle_square_button_bg_active',
+            backgroundDisabledFrame: 3,
+            iconTexture: 'middle_square_play_icon',
+            iconAnimation: 'middle_square_play_icon_active',
             onClick: () => {
                 this.scene.start('PianoScene', { mode: 'playback', track, returnScene: 'UserRecordsScene' });
             },
         });
 
-        const publishButton = new ToonButton({
+        const publishButton = new SpriteButton({
             scene: this,
             x: 0,
             y: 0,
-            width: 42,
-            height: 38,
-            label: '^',
-            fontSize: 18,
+            size: 50,
+            backgroundTexture: 'small_square_button_bg',
+            backgroundAnimation: 'small_square_button_bg_active',
+            backgroundDisabledFrame: 3,
+            iconTexture: 'small_square_done_icon',
+            iconAnimation: 'small_square_done_icon_active',
             onClick: () => this.confirmDialog.open({
                 title: 'PUBLISH RECORD?',
                 message: `After publishing, this tune stays in post history, cannot be deleted, and pays a ${PUBLISH_REWARD} note reward.`,
@@ -234,14 +240,16 @@ export class UserRecordsScene extends Scene {
         });
         publishButton.setDisabled(track.isPublished);
 
-        const deleteButton = new ToonButton({
+        const deleteButton = new SpriteButton({
             scene: this,
             x: 0,
             y: 0,
-            width: 42,
-            height: 38,
-            label: 'X',
-            fontSize: 17,
+            size: 50,
+            backgroundTexture: 'small_square_button_bg',
+            backgroundAnimation: 'small_square_button_bg_active',
+            backgroundDisabledFrame: 3,
+            iconTexture: 'small_square_remove_icon',
+            iconAnimation: 'small_square_remove_icon_active',
             onClick: () => this.confirmDialog.open({
                 title: 'DELETE RECORD?',
                 message: 'This saved draft will disappear from your vinyl shelf.',
@@ -263,32 +271,38 @@ export class UserRecordsScene extends Scene {
         const date = new Date(track.createdAt).toLocaleDateString('en-US', {
             month: 'short',
             day: 'numeric',
+            year: 'numeric',
         });
 
-        return `${date} | ${Math.round(track.averageRating)} avg | ${track.listenerCount} plays`;
+        return [
+            date,
+            `Score: ${Math.round(track.averageRating)}/10`,
+            `Listeners: ${track.listenerCount}`,
+        ].join('\n');
     }
 
     private refreshLayout() {
         if (!this.isSceneAlive || !this.background?.scene) return;
 
         const { width, height } = this.scale;
-        const rowWidth = Math.min(600, width * 0.9);
-        const rowHeight = Math.max(92, Math.min(116, height * 0.15));
+        const rowWidth = width;
+        const rowHeight = Math.max(112, Math.min(138, height * 0.17));
         const startY = height * 0.29;
         const gap = Math.max(8, height * 0.012);
-        const contentX = -rowWidth / 2 + 18;
-        const buttonX = rowWidth / 2 - 32;
+        const contentX = -rowWidth / 2 + 20;
+        const playButtonX = rowWidth / 2 - 100;
+        const actionButtonX = rowWidth / 2 - 36;
 
         this.cameras.resize(width, height);
-        this.background.setDisplaySize(width, height);
+        coverSceneBackground(this.background, width, height);
         this.title.setPosition(width / 2, Math.max(52, height * 0.085));
         this.title.setFontSize(Math.max(26, Math.min(40, width * 0.07)));
         this.title.setWordWrapWidth(Math.max(170, Math.min(280, width - 150)));
-        this.backButton.setPosition(40, 40);
+        this.backButton.setPosition(42, 42);
         this.emptyText.setPosition(width / 2, height * 0.52);
         this.emptyText.setWordWrapWidth(width * 0.78);
-        this.prevButton.setPosition(width / 2 - 46, height - 42);
-        this.nextButton.setPosition(width / 2 + 46, height - 42);
+        this.prevButton.setPosition(width / 2 - 38, height - 42);
+        this.nextButton.setPosition(width / 2 + 38, height - 42);
 
         this.rowViews.forEach((view, index) => {
             if (!view.row.scene || !view.panel.scene) return;
@@ -296,13 +310,13 @@ export class UserRecordsScene extends Scene {
             const rowY = startY + index * (rowHeight + gap);
             view.row.setPosition(width / 2, rowY);
             view.panel.setSize(rowWidth, rowHeight);
-            view.name.setPosition(contentX, -rowHeight * 0.26);
-            view.name.setWordWrapWidth(rowWidth - 122);
-            view.meta.setPosition(contentX, 2);
-            view.status.setPosition(contentX, rowHeight * 0.26);
-            view.playButton.setPosition(buttonX, -rowHeight * 0.28);
-            view.publishButton.setPosition(buttonX, 0);
-            view.deleteButton.setPosition(buttonX, rowHeight * 0.28);
+            view.name.setPosition(contentX, -rowHeight * 0.33);
+            view.name.setWordWrapWidth(rowWidth - 188);
+            view.meta.setPosition(contentX, -rowHeight * 0.03);
+            view.status.setPosition(contentX, rowHeight * 0.36);
+            view.playButton.setPosition(playButtonX, 0);
+            view.publishButton.setPosition(actionButtonX, -26);
+            view.deleteButton.setPosition(actionButtonX, 26);
         });
     }
 }

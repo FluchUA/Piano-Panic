@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
+import { TextSpriteButton } from './TextSpriteButton';
 import { ToonButton } from './ToonButton';
+import { fitImageByScreenMinSide } from '../utils/sceneBackground';
 
 type SaveTrackDialogConfig = {
     scene: Phaser.Scene;
@@ -14,7 +16,7 @@ const MAX_NAME_LENGTH = 10;
 
 export class SaveTrackDialog extends Phaser.GameObjects.Container {
     private background: Phaser.GameObjects.Rectangle;
-    private panel: Phaser.GameObjects.Rectangle;
+    private panel: Phaser.GameObjects.Image;
     private title: Phaser.GameObjects.Text;
     private helper: Phaser.GameObjects.Text;
     private inputBox: Phaser.GameObjects.Rectangle;
@@ -22,7 +24,7 @@ export class SaveTrackDialog extends Phaser.GameObjects.Container {
     private errorText: Phaser.GameObjects.Text;
     private counterText: Phaser.GameObjects.Text;
     private saveButton: ToonButton;
-    private cancelButton: ToonButton;
+    private cancelButton: TextSpriteButton;
     private resizeHandler: () => void;
     private keyHandler: (event: KeyboardEvent) => void;
     private onSave: (name: string) => Promise<void> = async () => undefined;
@@ -38,12 +40,11 @@ export class SaveTrackDialog extends Phaser.GameObjects.Container {
         this.resizeHandler = () => this.refreshLayout();
         this.keyHandler = (event) => this.handleKey(event);
 
-        this.background = cfg.scene.add.rectangle(0, 0, width, height, 0x000000, 0.74)
+        this.background = cfg.scene.add.rectangle(0, 0, width, height, 0x000000, 0.7)
             .setOrigin(0)
             .setInteractive();
 
-        this.panel = cfg.scene.add.rectangle(width / 2, height / 2, width * 0.84, height * 0.62, 0x16100d)
-            .setStrokeStyle(4, 0xf8d66d);
+        this.panel = cfg.scene.add.image(width / 2, height / 2, 'dialog_bg');
 
         this.title = cfg.scene.add.text(width / 2, height * 0.29, 'NAME YOUR TUNE', {
             color: '#f8d66d',
@@ -90,13 +91,16 @@ export class SaveTrackDialog extends Phaser.GameObjects.Container {
             onClick: () => this.submit(),
         });
 
-        this.cancelButton = new ToonButton({
+        this.cancelButton = new TextSpriteButton({
             scene: cfg.scene,
-            x: width / 2 + 88,
+            x: width / 2,
             y: height * 0.69,
-            width: 150,
-            height: 48,
-            label: 'CANCEL',
+            width: 160,
+            height: 46,
+            backgroundTexture: 'small_text_button_bg',
+            backgroundAnimation: 'small_text_button_bg_active',
+            contentTexture: 'small_text_button_cancel',
+            contentAnimation: 'small_text_button_cancel_active',
             onClick: () => this.close(),
         });
 
@@ -205,32 +209,30 @@ export class SaveTrackDialog extends Phaser.GameObjects.Container {
 
     private refreshLayout() {
         const { width, height } = this.ownerScene.scale;
-        const isCompact = width < 520;
-        const panelWidth = Math.min(520, width * 0.84);
 
         this.background.setSize(width, height);
-        this.panel.setPosition(width / 2, height / 2);
-        this.panel.setSize(panelWidth, isCompact ? height * 0.72 : height * 0.62);
-        this.title.setPosition(width / 2, height * 0.29);
-        this.helper.setPosition(width / 2, height * 0.37);
-        this.inputBox.setPosition(width / 2, height * 0.47);
-        this.inputBox.setSize(Math.min(280, width * 0.58), 54);
-        this.inputText.setPosition(width / 2, height * 0.47);
-        this.counterText.setPosition(width / 2, height * 0.54);
-        this.errorText.setPosition(width / 2, height * 0.59);
+        fitImageByScreenMinSide(this.panel, width, height);
 
-        if (isCompact) {
-            this.saveButton.resize(panelWidth * 0.68, 46, 16);
-            this.cancelButton.resize(panelWidth * 0.68, 46, 16);
-            this.saveButton.setPosition(width / 2, height * 0.67);
-            this.cancelButton.setPosition(width / 2, height * 0.77);
-            return;
-        }
+        const panelWidth = this.panel.displayWidth;
+        const panelHeight = this.panel.displayHeight;
+        const panelX = this.panel.x;
+        const panelY = this.panel.y;
+        const inputWidth = Math.min(280, panelWidth * 0.52);
 
-        const buttonGap = Math.min(190, width * 0.28);
-        this.saveButton.resize(150, 48, 18);
-        this.cancelButton.resize(150, 48, 18);
-        this.saveButton.setPosition(width / 2 - buttonGap / 2, height * 0.69);
-        this.cancelButton.setPosition(width / 2 + buttonGap / 2, height * 0.69);
+        this.title.setPosition(panelX, panelY - panelHeight * 0.28);
+        this.helper.setPosition(panelX, panelY - panelHeight * 0.17);
+        this.inputBox.setPosition(panelX, panelY - panelHeight * 0.03);
+        this.inputBox.setSize(inputWidth, 54);
+        this.inputText.setPosition(panelX, panelY - panelHeight * 0.03);
+        this.counterText.setPosition(panelX, panelY + panelHeight * 0.08);
+        this.errorText.setPosition(panelX, panelY + panelHeight * 0.16);
+
+        const buttonWidth = Math.min(160, panelWidth * 0.5);
+        const buttonStep = Math.max(52, panelHeight * 0.08);
+        const buttonCenterY = panelY + panelHeight * 0.35;
+        this.saveButton.resize(buttonWidth, 48, 18);
+        this.cancelButton.resize(buttonWidth, 46, 15);
+        this.saveButton.setPosition(panelX, buttonCenterY - buttonStep / 2);
+        this.cancelButton.setPosition(panelX, buttonCenterY + buttonStep / 2);
     }
 }

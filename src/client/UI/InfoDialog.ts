@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { ToonButton } from './ToonButton';
+import { TextSpriteButton } from './TextSpriteButton';
+import { fitImageByScreenMinSide } from '../utils/sceneBackground';
 
 type DialogConfig = {
     scene: Phaser.Scene;
@@ -7,9 +8,9 @@ type DialogConfig = {
 
 export class InfoDialog extends Phaser.GameObjects.Container {
     private background: Phaser.GameObjects.Rectangle;
-    private panel: Phaser.GameObjects.Rectangle;
+    private panel: Phaser.GameObjects.Image;
     private text: Phaser.GameObjects.Text;
-    private okButton: ToonButton;
+    private okButton: TextSpriteButton;
     private resizeHandler: () => void;
     private ownerScene: Phaser.Scene;
 
@@ -24,8 +25,7 @@ export class InfoDialog extends Phaser.GameObjects.Container {
             .setOrigin(0)
             .setInteractive();
 
-        this.panel = cfg.scene.add.rectangle(width / 2, height / 2, width * 0.8, height * 0.7, 0x111111)
-            .setStrokeStyle(4, 0xffffff);
+        this.panel = cfg.scene.add.image(width / 2, height / 2, 'dialog_bg');
 
         this.text = cfg.scene.add.text(width / 2, height / 2 - 24, '', {
             color: '#ffffff',
@@ -34,13 +34,16 @@ export class InfoDialog extends Phaser.GameObjects.Container {
             wordWrap: { width: width * 0.68 },
         }).setOrigin(0.5);
 
-        this.okButton = new ToonButton({
+        this.okButton = new TextSpriteButton({
             scene: cfg.scene,
             x: width / 2,
             y: height * 0.78,
             width: 160,
-            height: 48,
-            label: 'OK',
+            height: 46,
+            backgroundTexture: 'small_text_button_bg',
+            backgroundAnimation: 'small_text_button_bg_active',
+            contentTexture: 'small_text_button_ok',
+            contentAnimation: 'small_text_button_ok_active',
             onClick: () => this.close(),
         });
 
@@ -72,10 +75,16 @@ export class InfoDialog extends Phaser.GameObjects.Container {
         const { width, height } = this.ownerScene.scale;
 
         this.background.setSize(width, height);
-        this.panel.setPosition(width / 2, height / 2);
-        this.panel.setSize(width * 0.8, height * 0.7);
-        this.text.setPosition(width / 2, height / 2 - 24);
-        this.text.setWordWrapWidth(width * 0.68);
-        this.okButton.setPosition(width / 2, height * 0.78);
+        fitImageByScreenMinSide(this.panel, width, height);
+
+        const panelWidth = this.panel.displayWidth;
+        const panelHeight = this.panel.displayHeight;
+        const panelX = this.panel.x;
+        const panelY = this.panel.y;
+
+        this.text.setPosition(panelX, panelY - panelHeight * 0.06);
+        this.text.setWordWrapWidth(panelWidth * 0.66);
+        this.okButton.resize(Math.min(160, panelWidth * 0.5), 46);
+        this.okButton.setPosition(panelX, panelY + panelHeight * 0.34);
     }
 }

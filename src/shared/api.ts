@@ -43,7 +43,7 @@ export type ErrorResponse = {
 export type PianoEvent = {
     time: number; // Milliseconds from the start of the recording
     type: PianoEventType;
-    value: string | number | boolean; // Note, octave offset, pedal state, or metronome state
+    value: string | number | boolean; // Note, octave offset, piano sustain toggle, or metronome state
 };
 
 export type TrackModel = {

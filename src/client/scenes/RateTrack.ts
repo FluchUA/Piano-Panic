@@ -1,9 +1,11 @@
 import Phaser, { Scene } from 'phaser';
 import { InfoDialog } from '../UI/InfoDialog';
-import { ToonButton } from '../UI/ToonButton';
+import { SpriteButton } from '../UI/SpriteButton';
+import { TextSpriteButton } from '../UI/TextSpriteButton';
 import { RedditAPI } from '../utils/RedditAPI';
 import { AppMode } from '../../shared/api';
 import { formatNotes, getPrestigeTitle } from '../../shared/economy';
+import { coverSceneBackground } from '../utils/sceneBackground';
 import type { PostInfoResponse, TrackModel } from '../../shared/api';
 
 export class RateTrackScene extends Scene {
@@ -13,9 +15,8 @@ export class RateTrackScene extends Scene {
     private authorIntroText!: Phaser.GameObjects.Text;
     private statsText!: Phaser.GameObjects.Text;
     private helperText!: Phaser.GameObjects.Text;
-    private backButton?: ToonButton;
-    private listenButton!: ToonButton;
-    private ratingButtons: ToonButton[] = [];
+    private listenButton!: TextSpriteButton;
+    private ratingButtons: SpriteButton[] = [];
     private dialog!: InfoDialog;
     private track!: TrackModel;
     private isAuthor = false;
@@ -97,13 +98,16 @@ export class RateTrackScene extends Scene {
             wordWrap: { width: 520 },
         }).setOrigin(0.5);
 
-        this.listenButton = new ToonButton({
+        this.listenButton = new TextSpriteButton({
             scene: this,
             x: 0,
             y: 0,
-            width: 220,
-            height: 56,
-            label: this.isAuthor ? 'LISTEN AGAIN' : 'LISTEN',
+            width: 336,
+            height: 54,
+            backgroundTexture: 'middle_text_button_bg',
+            backgroundAnimation: 'middle_text_button_bg_active',
+            contentTexture: this.isAuthor ? 'middle_text_button_listen_again' : 'middle_text_button_listen',
+            contentAnimation: this.isAuthor ? 'middle_text_button_listen_again_active' : 'middle_text_button_listen_active',
             onClick: () => this.listen(),
         });
 
@@ -120,14 +124,16 @@ export class RateTrackScene extends Scene {
 
     private createRatingButtons() {
         for (let rating = 1; rating <= 10; rating += 1) {
-            const button = new ToonButton({
+            const button = new SpriteButton({
                 scene: this,
                 x: 0,
                 y: 0,
-                width: 76,
-                height: 52,
-                label: String(rating),
-                fontSize: 20,
+                size: 60,
+                backgroundTexture: 'middle_square_button_bg',
+                backgroundAnimation: 'middle_square_button_bg_active',
+                backgroundDisabledFrame: 3,
+                text: String(rating),
+                fontSize: 30,
                 onClick: () => this.submitRating(rating),
             });
             this.ratingButtons.push(button);
@@ -197,8 +203,9 @@ export class RateTrackScene extends Scene {
     private updateRatingButtons() {
         this.ratingButtons.forEach((button, index) => {
             const rating = index + 1;
-            button.setDisabled(!this.hasListened || this.userVote !== null);
-            button.setLabel(this.userVote === rating ? `${rating} *` : String(rating));
+            const isSelectedVote = this.userVote === rating;
+            button.setDisabled(!this.hasListened || this.userVote !== null, !isSelectedVote);
+            button.setText(String(rating));
         });
     }
 
@@ -229,28 +236,31 @@ export class RateTrackScene extends Scene {
         const { width, height } = this.scale;
         const gridCols = 5;
         const gap = Math.max(10, Math.min(18, width * 0.018));
-        const startX = width / 2 - ((gridCols - 1) * (76 + gap)) / 2;
-        const startY = height * 0.37;
+        const ratingButtonSize = 60;
+        const startX = width / 2 - ((gridCols - 1) * (ratingButtonSize + gap)) / 2;
+        const startY = height * 0.45;
+        const titleY = Math.max(58, height * 0.14);
+        const listenY = height - Math.max(88, height * 0.14);
 
         this.cameras.resize(width, height);
-        this.background.setDisplaySize(width, height);
-        this.backButton?.setPosition(76, 44);
-        this.title.setPosition(width / 2, Math.max(52, height * 0.09));
+        coverSceneBackground(this.background, width, height);
+        this.title.setPosition(width / 2, titleY);
         this.title.setWordWrapWidth(Math.max(180, Math.min(300, width * 0.72)));
         this.authorIntroText.setVisible(!this.isAuthor);
-        this.authorIntroText.setPosition(width / 2, height * 0.22);
+        this.authorIntroText.setPosition(width / 2, height * 0.26);
         this.authorIntroText.setWordWrapWidth(width * 0.78);
-        this.subtitle.setPosition(width / 2, this.isAuthor ? height * 0.23 : height * 0.32);
+        this.subtitle.setPosition(width / 2, this.isAuthor ? height * 0.31 : height * 0.34);
         this.subtitle.setWordWrapWidth(width * 0.76);
-        this.statsText.setPosition(width / 2, this.isAuthor ? height * 0.42 : height * 0.68);
-        this.helperText.setPosition(width / 2, this.isAuthor ? height * 0.56 : height * 0.79);
+        this.statsText.setPosition(width / 2, this.isAuthor ? height * 0.48 : height * 0.68);
+        this.helperText.setPosition(width / 2, this.isAuthor ? height * 0.61 : height * 0.79);
         this.helperText.setWordWrapWidth(width * 0.76);
-        this.listenButton.setPosition(width / 2, this.isAuthor ? height * 0.74 : height * 0.9);
+        this.listenButton.resize(Math.min(336, width * 0.86), 54);
+        this.listenButton.setPosition(width / 2, listenY);
 
         this.ratingButtons.forEach((button, index) => {
             const row = Math.floor(index / gridCols);
             const col = index % gridCols;
-            button.setPosition(startX + col * (76 + gap), startY + row * 66);
+            button.setPosition(startX + col * (ratingButtonSize + gap), startY + row * 66);
         });
     }
 }

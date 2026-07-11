@@ -1,11 +1,14 @@
 import Phaser, { Scene } from 'phaser';
 import { CurrencyWidget } from '../UI/CurrencyWidget';
+import { SpriteButton } from '../UI/SpriteButton';
 import { ToonButton } from '../UI/ToonButton';
 import { ConfirmDialog } from '../UI/ConfirmDialog';
 import { InfoDialog } from '../UI/InfoDialog';
 import { RedditAPI } from '../utils/RedditAPI';
 import { ShopItem } from '../../shared/api';
 import { SHOP_ITEM_PRICES } from '../../shared/economy';
+import { coverSceneBackground } from '../utils/sceneBackground';
+import { getShopItemMiniTexture } from '../utils/instrumentMiniatures';
 import type { UserResponse } from '../../shared/api';
 
 type ShopEntry = {
@@ -17,7 +20,7 @@ type ShopEntry = {
 type ShopItemView = {
     container: Phaser.GameObjects.Container;
     panel: Phaser.GameObjects.Rectangle;
-    artPlaceholder: Phaser.GameObjects.Rectangle;
+    art: Phaser.GameObjects.Container;
     title: Phaser.GameObjects.Text;
     button: ToonButton;
 };
@@ -34,7 +37,7 @@ export class ShopScene extends Scene {
     private background!: Phaser.GameObjects.Image;
     private title!: Phaser.GameObjects.Text;
     private subtitle!: Phaser.GameObjects.Text;
-    private backButton!: ToonButton;
+    private backButton!: SpriteButton;
     private currency!: CurrencyWidget;
     private itemViews: ShopItemView[] = [];
     private debugButtons: ToonButton[] = [];
@@ -57,8 +60,9 @@ export class ShopScene extends Scene {
             maxTrackDuration: 30,
         };
 
-        this.background = this.add.image(0, 0, 'background').setOrigin(0);
-        this.title = this.add.text(0, 0, 'THE MUSIC EMPORIUM', {
+        this.background = this.add.image(0, 0, 'shop_bg').setOrigin(0);
+
+        this.title = this.add.text(0, 0, 'THE MUSIC\nEMPORIUM', {
             fontSize: '40px',
             color: '#ffffff',
             fontStyle: 'bold',
@@ -73,14 +77,15 @@ export class ShopScene extends Scene {
             strokeThickness: 4,
         }).setOrigin(0.5);
 
-        this.backButton = new ToonButton({
+        this.backButton = new SpriteButton({
             scene: this,
             x: 0,
             y: 0,
-            width: 52,
-            height: 44,
-            label: '<',
-            fontSize: 22,
+            size: 70,
+            backgroundTexture: 'middle_round_button_bg',
+            backgroundAnimation: 'middle_round_button_bg_active',
+            iconTexture: 'middle_round_back_icon',
+            iconAnimation: 'middle_round_back_icon_active',
             onClick: () => {
                 this.scene.start('MainMenu');
             },
@@ -115,8 +120,7 @@ export class ShopScene extends Scene {
             fontStyle: 'bold',
             align: 'center',
         }).setOrigin(0.5);
-        const artPlaceholder = this.add.rectangle(0, -8, 72, 54, 0x32231c, 1)
-            .setStrokeStyle(2, 0xffffff);
+        const art = this.createShopArt(item);
         const button = new ToonButton({
             scene: this,
             x: 0,
@@ -129,9 +133,33 @@ export class ShopScene extends Scene {
         });
 
         button.setDisabled(this.isItemOwned(item));
-        container.add([panel, title, artPlaceholder, button]);
+        container.add([panel, title, art, button]);
 
-        return { container, panel, artPlaceholder, title, button };
+        return { container, panel, art, title, button };
+    }
+
+    private createShopArt(item: ShopEntry) {
+        const art = this.add.container(0, -8);
+        const miniTexture = getShopItemMiniTexture(item.id);
+
+        if (miniTexture) {
+            const sprite = this.add.sprite(0, 0, miniTexture).setOrigin(0.5);
+            sprite.play(`${miniTexture}_active`);
+            art.add(sprite);
+            return art;
+        }
+
+        const placeholder = this.add.rectangle(0, 0, 50, 50, 0x32231c, 1)
+            .setStrokeStyle(2, 0xffffff);
+        const label = this.add.text(0, 0, '+5s', {
+            fontSize: '15px',
+            color: '#f8d66d',
+            fontStyle: 'bold',
+            stroke: '#2f2118',
+            strokeThickness: 3,
+        }).setOrigin(0.5);
+        art.add([placeholder, label]);
+        return art;
     }
 
     private renderDebugButtons() {
@@ -240,18 +268,15 @@ export class ShopScene extends Scene {
         const cardHeight = Math.max(108, Math.min(138, height * 0.17));
         const gapX = Math.min(12, width * 0.025);
         const gapY = Math.max(12, height * 0.02);
-        const leftSafe = 82;
-        const rightSafe = 154;
-        const titleWidth = Math.max(150, width - leftSafe - rightSafe);
-        const titleWrapWidth = Math.min(300, titleWidth);
-        const titleX = leftSafe + titleWidth / 2;
+        const titleWrapWidth = Math.min(300, Math.max(150, width - 150));
         const startY = height * 0.34;
 
         this.cameras.resize(width, height);
-        this.background.setDisplaySize(width, height);
-        this.backButton.setPosition(40, 40);
-        this.currency.setPosition(width - 112, 40);
-        this.title.setPosition(titleX, Math.max(50, height * 0.08));
+        coverSceneBackground(this.background, width, height);
+        this.backButton.setPosition(42, 42);
+        this.currency.setResponsiveScale(width);
+        this.currency.setPosition(width - 48, 40);
+        this.title.setPosition(width / 2, Math.max(50, height * 0.08));
         this.title.setFontSize(Math.max(25, Math.min(40, width * 0.065)));
         this.title.setWordWrapWidth(titleWrapWidth);
         this.subtitle.setPosition(width / 2, height * 0.19);
@@ -269,8 +294,8 @@ export class ShopScene extends Scene {
             view.panel.setSize(cardWidth, cardHeight);
             view.title.setPosition(0, -cardHeight * 0.34);
             view.title.setFontSize(Math.max(12, Math.min(16, cardWidth * 0.13)));
-            view.artPlaceholder.setPosition(0, -cardHeight * 0.03);
-            view.artPlaceholder.setSize(cardWidth * 0.56, cardHeight * 0.34);
+            view.art.setPosition(0, -cardHeight * 0.03);
+            view.art.setScale(Math.min(cardWidth * 0.62, cardHeight * 0.42) / 50);
             view.button.resize(cardWidth * 0.72, Math.max(32, cardHeight * 0.25), 12);
             view.button.setPosition(0, cardHeight * 0.32);
         });

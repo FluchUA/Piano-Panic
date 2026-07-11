@@ -1,8 +1,9 @@
 import Phaser, { Scene } from 'phaser';
 
 import { CurrencyWidget } from '../UI/CurrencyWidget';
-import { ToonButton } from '../UI/ToonButton';
+import { TextSpriteButton } from '../UI/TextSpriteButton';
 import { getPrestigeTitle } from '../../shared/economy';
+import { coverSceneBackground } from '../utils/sceneBackground';
 import type { UserResponse } from '../../shared/api';
 
 export class MainMenu extends Scene {
@@ -11,9 +12,9 @@ export class MainMenu extends Scene {
   private titleSub!: Phaser.GameObjects.Text;
   private prestigeText!: Phaser.GameObjects.Text;
 
-  private btnCompose!: ToonButton;
-  private btnRecords!: ToonButton;
-  private btnShop!: ToonButton;
+  private btnCompose!: TextSpriteButton;
+  private btnRecords!: TextSpriteButton;
+  private btnShop!: TextSpriteButton;
 
   private currency!: CurrencyWidget;
   private resizeHandler = () => this.refreshLayout();
@@ -28,7 +29,7 @@ export class MainMenu extends Scene {
     this.background = this.add.image(0, 0, 'background').setOrigin(0);
     this.background.setDepth(0);
 
-    this.titleMain = this.add.text(0, 0, 'TOONTUNE STUDIO', {
+    this.titleMain = this.add.text(0, 0, 'TOONTUNE\nSTUDIO', {
       fontSize: '48px',
       color: '#ffffff',
       fontStyle: 'bold',
@@ -52,37 +53,46 @@ export class MainMenu extends Scene {
       strokeThickness: 4,
     }).setOrigin(0.5);
 
-    this.btnCompose = new ToonButton({
+    this.btnCompose = new TextSpriteButton({
       scene: this,
       x: 0,
       y: 0,
       width: 320,
-      height: 62,
-      label: 'COMPOSE A TUNE',
+      height: 54,
+      backgroundTexture: 'middle_text_button_bg',
+      backgroundAnimation: 'middle_text_button_bg_active',
+      contentTexture: 'middle_text_button_compose',
+      contentAnimation: 'middle_text_button_compose_active',
       onClick: () => {
         this.scene.start('PianoScene', { mode: 'compose' });
       },
     });
 
-    this.btnRecords = new ToonButton({
+    this.btnRecords = new TextSpriteButton({
       scene: this,
       x: 0,
       y: 0,
       width: 320,
-      height: 62,
-      label: 'MY VINYL RECORDS',
+      height: 54,
+      backgroundTexture: 'middle_text_button_bg',
+      backgroundAnimation: 'middle_text_button_bg_active',
+      contentTexture: 'middle_text_button_records',
+      contentAnimation: 'middle_text_button_records_active',
       onClick: () => {
         this.scene.start('UserRecordsScene');
       },
     });
 
-    this.btnShop = new ToonButton({
+    this.btnShop = new TextSpriteButton({
       scene: this,
       x: 0,
       y: 0,
       width: 320,
-      height: 62,
-      label: 'THE MUSIC EMPORIUM',
+      height: 54,
+      backgroundTexture: 'middle_text_button_bg',
+      backgroundAnimation: 'middle_text_button_bg_active',
+      contentTexture: 'middle_text_button_emporium',
+      contentAnimation: 'middle_text_button_emporium_active',
       onClick: () => {
         this.scene.start('ShopScene');
       },
@@ -105,10 +115,10 @@ export class MainMenu extends Scene {
   private refreshLayout() {
     const { width, height } = this.scale;
     const buttonWidth = Math.min(340, width * 0.76);
-    const buttonHeight = Math.max(52, Math.min(66, height * 0.085));
+    const buttonHeight = Math.max(48, Math.min(58, height * 0.078));
 
     this.cameras.resize(width, height);
-    this.background.setDisplaySize(width, height);
+    coverSceneBackground(this.background, width, height);
 
     this.titleMain.setPosition(width / 2, height * 0.14);
     this.titleMain.setFontSize(Math.max(30, Math.min(48, width * 0.055)));
@@ -122,10 +132,15 @@ export class MainMenu extends Scene {
     this.btnRecords.resize(buttonWidth, buttonHeight, 20);
     this.btnShop.resize(buttonWidth, buttonHeight, 20);
 
-    this.btnCompose.setPosition(width / 2, height * 0.45);
-    this.btnRecords.setPosition(width / 2, height * 0.58);
-    this.btnShop.setPosition(width / 2, height * 0.71);
+    const buttonGap = Math.max(7, Math.min(14, height * 0.016));
+    const buttonStep = buttonHeight + buttonGap;
+    const buttonGroupY = height * 0.62;
 
-    this.currency.setPosition(width - 112, 40);
+    this.btnCompose.setPosition(width / 2, buttonGroupY - buttonStep);
+    this.btnRecords.setPosition(width / 2, buttonGroupY);
+    this.btnShop.setPosition(width / 2, buttonGroupY + buttonStep);
+
+    this.currency.setResponsiveScale(width);
+    this.currency.setPosition(width - 48, 40);
   }
 }

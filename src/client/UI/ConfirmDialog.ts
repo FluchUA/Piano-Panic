@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { ToonButton } from './ToonButton';
+import { TextSpriteButton } from './TextSpriteButton';
+import { fitImageByScreenMinSide } from '../utils/sceneBackground';
 
 type ConfirmDialogConfig = {
     scene: Phaser.Scene;
@@ -15,11 +16,11 @@ type OpenConfirmConfig = {
 
 export class ConfirmDialog extends Phaser.GameObjects.Container {
     private background: Phaser.GameObjects.Rectangle;
-    private panel: Phaser.GameObjects.Rectangle;
+    private panel: Phaser.GameObjects.Image;
     private title: Phaser.GameObjects.Text;
     private message: Phaser.GameObjects.Text;
-    private confirmButton: ToonButton;
-    private cancelButton: ToonButton;
+    private confirmButton: TextSpriteButton;
+    private cancelButton: TextSpriteButton;
     private onConfirm: () => void | Promise<void> = () => undefined;
     private resizeHandler: () => void;
     private ownerScene: Phaser.Scene;
@@ -31,12 +32,11 @@ export class ConfirmDialog extends Phaser.GameObjects.Container {
 
         const { width, height } = cfg.scene.scale;
 
-        this.background = cfg.scene.add.rectangle(0, 0, width, height, 0x000000, 0.72)
+        this.background = cfg.scene.add.rectangle(0, 0, width, height, 0x000000, 0.7)
             .setOrigin(0)
             .setInteractive();
 
-        this.panel = cfg.scene.add.rectangle(width / 2, height / 2, width * 0.82, height * 0.58, 0x16100d)
-            .setStrokeStyle(4, 0xffffff);
+        this.panel = cfg.scene.add.image(width / 2, height / 2, 'dialog_bg');
 
         this.title = cfg.scene.add.text(width / 2, height * 0.32, '', {
             color: '#f8d66d',
@@ -53,12 +53,14 @@ export class ConfirmDialog extends Phaser.GameObjects.Container {
             wordWrap: { width: width * 0.68 },
         }).setOrigin(0.5);
 
-        this.confirmButton = new ToonButton({
+        this.confirmButton = new TextSpriteButton({
             scene: cfg.scene,
-            x: width / 2 - 100,
+            x: width / 2,
             y: height * 0.66,
-            width: 180,
-            height: 48,
+            width: 160,
+            height: 46,
+            backgroundTexture: 'small_text_button_bg',
+            backgroundAnimation: 'small_text_button_bg_active',
             label: 'Continue',
             onClick: async () => {
                 this.close();
@@ -66,12 +68,16 @@ export class ConfirmDialog extends Phaser.GameObjects.Container {
             },
         });
 
-        this.cancelButton = new ToonButton({
+        this.cancelButton = new TextSpriteButton({
             scene: cfg.scene,
-            x: width / 2 + 100,
+            x: width / 2,
             y: height * 0.66,
             width: 160,
-            height: 48,
+            height: 46,
+            backgroundTexture: 'small_text_button_bg',
+            backgroundAnimation: 'small_text_button_bg_active',
+            contentTexture: 'small_text_button_cancel',
+            contentAnimation: 'small_text_button_cancel_active',
             label: 'Cancel',
             onClick: () => this.close(),
         });
@@ -114,30 +120,26 @@ export class ConfirmDialog extends Phaser.GameObjects.Container {
 
     private refreshLayout() {
         const { width, height } = this.ownerScene.scale;
-        const isCompact = width < 520;
-        const panelWidth = Math.min(520, width * 0.86);
-        const panelHeight = isCompact ? height * 0.66 : height * 0.58;
 
         this.background.setSize(width, height);
-        this.panel.setPosition(width / 2, height / 2);
-        this.panel.setSize(panelWidth, panelHeight);
-        this.title.setPosition(width / 2, height * 0.29);
-        this.title.setWordWrapWidth(panelWidth * 0.82);
-        this.message.setPosition(width / 2, height * 0.43);
-        this.message.setWordWrapWidth(panelWidth * 0.82);
+        fitImageByScreenMinSide(this.panel, width, height);
 
-        if (isCompact) {
-            this.confirmButton.resize(panelWidth * 0.68, 46, 16);
-            this.cancelButton.resize(panelWidth * 0.68, 46, 16);
-            this.confirmButton.setPosition(width / 2, height * 0.63);
-            this.cancelButton.setPosition(width / 2, height * 0.73);
-            return;
-        }
+        const panelWidth = this.panel.displayWidth;
+        const panelHeight = this.panel.displayHeight;
+        const panelX = this.panel.x;
+        const panelY = this.panel.y;
 
-        const buttonGap = Math.min(220, width * 0.26);
-        this.confirmButton.resize(180, 48, 18);
-        this.cancelButton.resize(160, 48, 18);
-        this.confirmButton.setPosition(width / 2 - buttonGap / 2, height * 0.66);
-        this.cancelButton.setPosition(width / 2 + buttonGap / 2, height * 0.66);
+        this.title.setPosition(panelX, panelY - panelHeight * 0.24);
+        this.title.setWordWrapWidth(panelWidth * 0.68);
+        this.message.setPosition(panelX, panelY - panelHeight * 0.03);
+        this.message.setWordWrapWidth(panelWidth * 0.7);
+
+        const buttonWidth = Math.min(160, panelWidth * 0.5);
+        const buttonStep = Math.max(52, panelHeight * 0.08);
+        const buttonCenterY = panelY + panelHeight * 0.31;
+        this.confirmButton.resize(buttonWidth, 46, 15);
+        this.cancelButton.resize(buttonWidth, 46, 15);
+        this.confirmButton.setPosition(panelX, buttonCenterY - buttonStep / 2);
+        this.cancelButton.setPosition(panelX, buttonCenterY + buttonStep / 2);
     }
 }

@@ -33,6 +33,14 @@ const SHOP_INSTRUMENTS = [
     ShopItem.ELECTRO,
 ];
 
+const SUPPORTED_INSTRUMENTS = [
+    InstrumentId.DEFAULT_PIANO,
+    InstrumentId.SYNTH_PIANO,
+    InstrumentId.ORGAN,
+    InstrumentId.RETRO,
+    InstrumentId.ELECTRO,
+];
+
 const isShopInstrument = (value: string): value is ShopItem => (
     SHOP_INSTRUMENTS.some((item) => item === value)
 );
@@ -43,6 +51,10 @@ const isPianoEventType = (value: unknown): value is PianoEventType => (
 
 const isPianoEventValue = (value: unknown): value is string | number | boolean => (
     ['string', 'number', 'boolean'].includes(typeof value)
+);
+
+const normalizeInstrumentId = (value: unknown): InstrumentId => (
+    SUPPORTED_INSTRUMENTS.find((instrument) => instrument === value) ?? InstrumentId.DEFAULT_PIANO
 );
 
 const parsePurchasedItems = (raw: string | undefined): ShopItem[] => {
@@ -71,7 +83,10 @@ const getTrackStats = async (trackId: string) => {
     };
 };
 
-const normalizeTimeline = (timeline: unknown): PianoEvent[] => {
+const normalizeTimeline = (
+    timeline: unknown,
+    instrumentId = InstrumentId.DEFAULT_PIANO
+): PianoEvent[] => {
     if (!Array.isArray(timeline)) return [];
 
     return timeline
@@ -89,14 +104,19 @@ const normalizeTimeline = (timeline: unknown): PianoEvent[] => {
                 value,
             };
         })
-        .filter((event) => event !== null);
+        .filter((event) => event !== null)
+        .filter((event) => (
+            instrumentId === InstrumentId.DEFAULT_PIANO
+            || event.type !== PianoEventType.PedalToggle
+        ));
 };
 
 const normalizeTrack = async (raw: string): Promise<TrackModel> => {
     const parsed = JSON.parse(raw);
     const id = String(parsed.id ?? '');
     const stats = await getTrackStats(id);
-    const timeline = normalizeTimeline(parsed.timeline);
+    const instrumentId = normalizeInstrumentId(parsed.instrumentId);
+    const timeline = normalizeTimeline(parsed.timeline, instrumentId);
     const noteCount = Number(parsed.noteCount ?? timeline.filter((event) => event.type === PianoEventType.NoteOn).length);
 
     return {
@@ -104,7 +124,7 @@ const normalizeTrack = async (raw: string): Promise<TrackModel> => {
         userId: String(parsed.userId ?? ''),
         name: String(parsed.name ?? 'Untitled Tune'),
         timeline,
-        instrumentId: String(parsed.instrumentId ?? InstrumentId.DEFAULT_PIANO),
+        instrumentId,
         createdAt: Number(parsed.createdAt ?? Date.now()),
         durationMs: Number(parsed.durationMs ?? 0),
         noteCount,
@@ -285,7 +305,8 @@ api.post('/save-track', async (c) => {
 
     const now = Date.now();
     const trackId = `track:${userId}:${now}`;
-    const timeline = normalizeTimeline(body.timeline);
+    const instrumentId = normalizeInstrumentId(body.instrumentId);
+    const timeline = normalizeTimeline(body.timeline, instrumentId);
     const noteCount = Number(body.noteCount ?? timeline.filter((event) => event.type === PianoEventType.NoteOn).length);
 
     const newTrack: TrackModel = {
@@ -293,7 +314,7 @@ api.post('/save-track', async (c) => {
         userId,
         name: body.name?.trim() || 'Untitled Tune',
         timeline,
-        instrumentId: body.instrumentId || InstrumentId.DEFAULT_PIANO,
+        instrumentId,
         createdAt: now,
         durationMs: Number(body.durationMs ?? 0),
         noteCount,
