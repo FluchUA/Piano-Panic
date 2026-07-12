@@ -14,6 +14,7 @@ import type {
     PublishTrackResponse,
     RemoveTrackResponse,
     SaveTrackResponse,
+    SplashInfoResponse,
     SubmitRatingResponse,
     TrackModel,
     UserResponse,
@@ -197,6 +198,33 @@ api.get('/post-info', async (c) => {
             authorName: riddleRaw.authorName ?? 'Unknown Maestro',
             authorNotes,
         },
+    });
+});
+
+// Returns tiny post state for the inline splash
+api.get('/splash-info', async (c) => {
+    const { userId, postId } = context;
+    const hubInfo: SplashInfoResponse = {
+        mode: 'hub',
+        title: 'WELCOME TO THE STUDIO!',
+        buttonLabel: 'Enter Studio',
+    };
+
+    if (!postId) return c.json<SplashInfoResponse>(hubInfo);
+
+    const riddleRaw = await redis.hGetAll(`riddle:${postId}`);
+    if (!riddleRaw?.trackId) return c.json<SplashInfoResponse>(hubInfo);
+
+    const trackRaw = await redis.get(riddleRaw.trackId);
+    if (!trackRaw) return c.json<SplashInfoResponse>(hubInfo);
+
+    const track = await normalizeTrack(trackRaw);
+    const isAuthor = Boolean(userId && track.userId === userId);
+
+    return c.json<SplashInfoResponse>({
+        mode: isAuthor ? 'ownerTrack' : 'rateTrack',
+        title: 'FRESH TUNE DROPPED!',
+        buttonLabel: isAuthor ? 'View Your Hit' : 'Tune In!',
     });
 });
 

@@ -92,6 +92,12 @@ export type PostInfoResponse =
         };
     };
 
+export type SplashInfoResponse = {
+    mode: 'hub' | 'ownerTrack' | 'rateTrack';
+    title: string;
+    buttonLabel: string;
+};
+
 export type BuyItemResponse = {
     success: true;
     updatedNotes: number;

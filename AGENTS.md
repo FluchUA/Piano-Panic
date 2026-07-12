@@ -15,6 +15,7 @@ You are writing a Devvit web application that will be executed on Reddit.com.
 - `/src/client`: **Frontend Code**. This is executed inside of an iFrame on reddit.com
   - To add an entrypoint, create a HTML file and add to the mapping inside of `devvit.json`
   - Entrypoints:
+    - `splash.html`: The lightweight inline view shown in the Reddit feed.
     - `game.html`: The main React entry point (Expanded View).
 - `/src/shared`: **Shared Code**. Code to share between the client and server
 
