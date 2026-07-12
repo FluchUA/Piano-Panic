@@ -61,7 +61,7 @@ export class TextSpriteButton extends Phaser.GameObjects.Container {
         this.inlineIconGap = cfg.inlineIconGap ?? 4;
 
         this.background = cfg.scene.add.sprite(0, 0, cfg.backgroundTexture).setOrigin(0.5);
-        this.background.play(cfg.backgroundAnimation);
+        if (cfg.scene.anims.exists(cfg.backgroundAnimation)) this.background.play(cfg.backgroundAnimation);
         this.add(this.background);
 
         if (cfg.inlineIconTexture) {
@@ -83,6 +83,7 @@ export class TextSpriteButton extends Phaser.GameObjects.Container {
         cfg.scene.add.existing(this);
     }
 
+    // Sets text or a matching text sprite
     public setLabel(text: string, fontSize?: number) {
         const contentTexture = SMALL_TEXT_BUTTON_CONTENT[text.toUpperCase()];
         if (contentTexture && this.scene.textures.exists(contentTexture)) {
@@ -110,6 +111,7 @@ export class TextSpriteButton extends Phaser.GameObjects.Container {
         this.applyDisplaySize(1);
     }
 
+    // Sets animated sprite content
     public setContent(texture: string, animation = `${texture}_active`) {
         this.label?.setVisible(false);
         this.inlineIcon?.setVisible(false);
@@ -126,13 +128,18 @@ export class TextSpriteButton extends Phaser.GameObjects.Container {
         this.applyDisplaySize(1);
     }
 
+    // Updates disabled visual state
     public setDisabled(isDisabled: boolean) {
         this.disabled = isDisabled;
         this.setAlpha(isDisabled ? 0.55 : 1);
-        this.background.play(this.backgroundAnimation, true);
-        if (this.content?.visible) this.content.anims.resume();
+        if (this.isSpriteAlive(this.background) && this.scene.anims.exists(this.backgroundAnimation)) {
+            this.background.play(this.backgroundAnimation, true);
+        }
+        const content = this.content;
+        if (this.isSpriteAlive(content) && content.visible) content.anims?.resume();
     }
 
+    // Resizes the button
     public resize(width: number, height: number, fontSize?: number) {
         this.widthValue = width;
         this.heightValue = height;
@@ -141,6 +148,7 @@ export class TextSpriteButton extends Phaser.GameObjects.Container {
         this.applyDisplaySize(1);
     }
 
+    // Wires pointer interactions
     private bindInput() {
         this.background.on('pointerover', () => {
             if (!this.disabled) this.applyDisplaySize(1.02);
@@ -158,18 +166,28 @@ export class TextSpriteButton extends Phaser.GameObjects.Container {
         });
     }
 
+    // Applies proportional visual scale
     private applyDisplaySize(scale: number) {
+        if (!this.isSpriteAlive(this.background)) return;
+
         const sourceWidth = Math.max(this.background.width, 1);
         const sourceHeight = Math.max(this.background.height, 1);
         const baseScale = Math.min(this.widthValue / sourceWidth, this.heightValue / sourceHeight);
         const displayScale = baseScale * scale;
 
         this.background.setScale(displayScale);
-        this.content?.setScale(displayScale);
+        const content = this.content;
+        if (this.isSpriteAlive(content)) content.setScale(displayScale);
         this.label?.setScale(scale);
         this.layoutInlineContent(scale);
     }
 
+    // Checks if a sprite can still be touched
+    private isSpriteAlive(sprite: Phaser.GameObjects.Sprite | undefined): sprite is Phaser.GameObjects.Sprite {
+        return Boolean(sprite?.scene && sprite.active);
+    }
+
+    // Places label and inline icon together
     private layoutInlineContent(scale: number) {
         if (!this.label?.visible) return;
 

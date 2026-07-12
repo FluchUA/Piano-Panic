@@ -51,6 +51,7 @@ export class ShopScene extends Scene {
         super('ShopScene');
     }
 
+    // Builds the shop screen
     create() {
         const registryUser: UserResponse | undefined = this.registry.get('user');
         this.user = registryUser ?? {
@@ -106,11 +107,13 @@ export class ShopScene extends Scene {
         });
     }
 
+    // Rebuilds all shop item cards
     private renderItems() {
         this.itemViews.forEach((view) => view.container.destroy(true));
         this.itemViews = SHOP_ITEMS.map((item) => this.createItemView(item));
     }
 
+    // Creates one shop card
     private createItemView(item: ShopEntry): ShopItemView {
         const container = this.add.container(0, 0);
         const panel = this.add.rectangle(0, 0, 140, 150, 0x201511, 0.88)
@@ -145,13 +148,15 @@ export class ShopScene extends Scene {
         return { container, panel, art, title, button };
     }
 
+    // Creates the small item artwork
     private createShopArt(item: ShopEntry) {
         const art = this.add.container(0, -8);
         const miniTexture = getShopItemMiniTexture(item.id);
 
         if (miniTexture) {
             const sprite = this.add.sprite(0, 0, miniTexture).setOrigin(0.5);
-            sprite.play(`${miniTexture}_active`);
+            const animation = `${miniTexture}_active`;
+            if (this.anims.exists(animation)) sprite.play(animation);
             art.add(sprite);
             return art;
         }
@@ -159,6 +164,7 @@ export class ShopScene extends Scene {
         return art;
     }
 
+    // Creates temporary testing buttons
     private renderDebugButtons() {
         this.debugButtons.forEach((button) => button.destroy());
         this.debugButtons = [
@@ -200,6 +206,7 @@ export class ShopScene extends Scene {
         ];
     }
 
+    // Buys a shop item and refreshes the user state
     private async buyItem(item: ShopEntry) {
         try {
             const response = await RedditAPI.buyItem(item.id);
@@ -218,6 +225,7 @@ export class ShopScene extends Scene {
         }
     }
 
+    // Adds test notes for shop testing
     private async debugAddNotes() {
         const response = await RedditAPI.debugAddNotes();
         this.user = { ...this.user, notes: response.notes };
@@ -225,6 +233,7 @@ export class ShopScene extends Scene {
         this.currency.setValue(response.notes);
     }
 
+    // Removes test notes for shop testing
     private async debugRemoveNotes() {
         const response = await RedditAPI.debugRemoveNotes();
         this.user = { ...this.user, notes: response.notes };
@@ -232,6 +241,7 @@ export class ShopScene extends Scene {
         this.currency.setValue(response.notes);
     }
 
+    // Resets shop purchases for testing
     private async debugResetShop() {
         const response = await RedditAPI.debugResetShop();
         this.user = {
@@ -246,10 +256,12 @@ export class ShopScene extends Scene {
         this.refreshLayout();
     }
 
+    // Chooses the shop button label
     private getItemButtonLabel(item: ShopEntry) {
         return this.isItemOwned(item) ? 'SOLD' : String(item.price);
     }
 
+    // Checks if an item should be marked sold
     private isItemOwned(item: ShopEntry) {
         if (item.id === ShopItem.TIME_PLUS_5) {
             return this.user.maxTrackDuration >= 300;
@@ -258,6 +270,7 @@ export class ShopScene extends Scene {
         return this.user.purchasedItems.includes(item.id);
     }
 
+    // Repositions shop cards for the current screen size
     private refreshLayout() {
         const { width, height } = this.scale;
         const columns = 3;
@@ -274,7 +287,7 @@ export class ShopScene extends Scene {
         this.currency.setResponsiveScale(width);
         this.currency.setPosition(width - 48, 40);
         this.title.setPosition(width / 2, Math.max(50, height * 0.08));
-        this.title.setFontSize(Math.max(25, Math.min(40, width * 0.065)));
+        this.title.setFontSize(Math.max(25, Math.min(40, width * 0.05)));
         this.title.setWordWrapWidth(titleWrapWidth);
         this.subtitle.setPosition(width / 2, height * 0.19);
 

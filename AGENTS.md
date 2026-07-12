@@ -16,7 +16,6 @@ You are writing a Devvit web application that will be executed on Reddit.com.
   - To add an entrypoint, create a HTML file and add to the mapping inside of `devvit.json`
   - Entrypoints:
     - `game.html`: The main React entry point (Expanded View).
-    - `splash.html`: The initial React entry point (Inline View). This will be shown in the reddit.com feed. Please keep it fast and keep heavy dependencies inside of `game.html`
 - `/src/shared`: **Shared Code**. Code to share between the client and server
 
 ## Frontend

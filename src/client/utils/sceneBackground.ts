@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 
+// Covers the whole scene with a background image
 export const coverSceneBackground = (
     image: Phaser.GameObjects.Image,
     width: number,
@@ -8,7 +9,8 @@ export const coverSceneBackground = (
     coverImageArea(image, width, height, width / 2, height / 2);
 };
 
-export const coverImageArea = (
+// Covers a custom area with an image
+const coverImageArea = (
     image: Phaser.GameObjects.Image,
     width: number,
     height: number,
@@ -24,36 +26,7 @@ export const coverImageArea = (
     image.setScale(scale);
 };
 
-export const fitImageInsideArea = (
-    image: Phaser.GameObjects.Image,
-    width: number,
-    height: number,
-    x: number,
-    y: number
-) => {
-    const sourceWidth = image.width || 1;
-    const sourceHeight = image.height || 1;
-    const scale = Math.min(width / sourceWidth, height / sourceHeight);
-
-    image.setOrigin(0.5);
-    image.setPosition(x, y);
-    image.setScale(scale);
-};
-
-export const fitImageToWidthInsideArea = (
-    image: Phaser.GameObjects.Image,
-    width: number,
-    x: number,
-    y: number
-) => {
-    const sourceWidth = image.width || 1;
-    const scale = width / sourceWidth;
-
-    image.setOrigin(0.5);
-    image.setPosition(x, y);
-    image.setScale(scale);
-};
-
+// Fits dialog art using the smaller screen side
 export const fitImageByScreenMinSide = (
     image: Phaser.GameObjects.Image,
     screenWidth: number,

@@ -5,6 +5,7 @@ import { createPost } from '../core/post';
 
 export const triggers = new Hono();
 
+// Creates the starter post when the app is installed
 triggers.post('/on-app-install', async (c) => {
   try {
     const post = await createPost();

@@ -29,6 +29,8 @@ const SHOP_ITEM_MINI_TEXTURES: Record<ShopItem, string | null> = {
     [ShopItem.ELECTRO]: 'mini_electro_hold_bg',
 };
 
+// Returns the mini art for a playable instrument
 export const getInstrumentMiniTexture = (instrument: InstrumentId) => INSTRUMENT_MINI_TEXTURES[instrument];
 
+// Returns the mini art for a shop item
 export const getShopItemMiniTexture = (item: ShopItem) => SHOP_ITEM_MINI_TEXTURES[item];

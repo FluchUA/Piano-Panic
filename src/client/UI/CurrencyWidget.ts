@@ -18,7 +18,7 @@ export class CurrencyWidget {
     const { scene } = cfg;
 
     this.icon = scene.add.sprite(0, 0, 'currency');
-    this.icon.play('currency_spin');
+    if (scene.anims.exists('currency_spin')) this.icon.play('currency_spin');
 
     this.text = scene.add.text(0, 0, '0', {
       fontSize: '24px',
@@ -37,25 +37,30 @@ export class CurrencyWidget {
     this.container.setScrollFactor(0); // fixed UI
   }
 
+  // Updates the displayed note balance
   setValue(v: number) {
     this.value = v;
     this.text.setText(v.toLocaleString('en-US'));
     this.fitTextInsideIcon();
   }
 
+  // Shrinks text on narrow screens
   setResponsiveScale(screenWidth: number) {
     this.responsiveScale = screenWidth >= 480 ? 1 : Math.max(0.72, screenWidth / 480);
     this.fitTextInsideIcon();
   }
 
+  // Adds notes locally
   add(v: number) {
     this.setValue(this.value + v);
   }
 
+  // Moves the widget
   setPosition(x: number, y: number) {
     this.container.setPosition(x, y);
   }
 
+  // Keeps the value inside the icon
   private fitTextInsideIcon() {
     this.text.setScale(1);
 

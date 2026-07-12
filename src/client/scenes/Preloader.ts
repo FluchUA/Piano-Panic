@@ -9,10 +9,12 @@ export class Preloader extends Scene {
     super('Preloader');
   }
 
+  // Shows the loader before asset loading
   init() {
     window.dispatchEvent(new CustomEvent('SHOW_PHASER_LOADER'));
   }
 
+  // Queues all game assets
   preload() {
     this.load.setPath('../assets');
     this.load.image('background', 'background/main_menu_bg.png');
@@ -77,6 +79,7 @@ export class Preloader extends Scene {
     });
   }
 
+  // Creates animations and opens the first real scene
   create() {
     this.anims.create({
       key: 'currency_spin',

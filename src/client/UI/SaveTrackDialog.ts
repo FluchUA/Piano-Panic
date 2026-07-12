@@ -27,6 +27,8 @@ export class SaveTrackDialog extends Phaser.GameObjects.Container {
     private cancelButton: TextSpriteButton;
     private resizeHandler: () => void;
     private keyHandler: (event: KeyboardEvent) => void;
+    private htmlInputHandler: () => void;
+    private htmlKeyHandler: (event: KeyboardEvent) => void;
     private onSave: (name: string) => Promise<void> = async () => undefined;
     private value = '';
     private isSaving = false;
@@ -39,6 +41,13 @@ export class SaveTrackDialog extends Phaser.GameObjects.Container {
 
         this.resizeHandler = () => this.refreshLayout();
         this.keyHandler = (event) => this.handleKey(event);
+        this.htmlInputHandler = () => this.syncHtmlInputValue();
+        this.htmlKeyHandler = (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                void this.submit();
+            }
+        };
 
         this.background = cfg.scene.add.rectangle(0, 0, width, height, 0x000000, 0.7)
             .setOrigin(0)
@@ -126,13 +135,8 @@ export class SaveTrackDialog extends Phaser.GameObjects.Container {
         this.htmlInput.style.fontSize = '16px';
         this.htmlInput.style.outline = 'none';
         this.htmlInput.style.display = 'none';
-        this.htmlInput.addEventListener('input', () => this.syncHtmlInputValue());
-        this.htmlInput.addEventListener('keydown', (event) => {
-            if (event.key === 'Enter') {
-                event.preventDefault();
-                void this.submit();
-            }
-        });
+        this.htmlInput.addEventListener('input', this.htmlInputHandler);
+        this.htmlInput.addEventListener('keydown', this.htmlKeyHandler);
         document.body.appendChild(this.htmlInput);
 
         this.add([
@@ -155,6 +159,7 @@ export class SaveTrackDialog extends Phaser.GameObjects.Container {
         cfg.scene.add.existing(this);
     }
 
+    // Opens the save dialog
     public open(cfg: OpenSaveTrackConfig) {
         this.value = (cfg.initialName ?? '').slice(0, MAX_NAME_LENGTH);
         this.onSave = cfg.onSave;
@@ -166,10 +171,12 @@ export class SaveTrackDialog extends Phaser.GameObjects.Container {
         this.htmlInput.style.display = 'block';
         this.refreshLayout();
         this.setVisible(true);
+        this.ownerScene.input.keyboard?.off('keydown', this.keyHandler);
         this.ownerScene.input.keyboard?.on('keydown', this.keyHandler);
         this.focusHtmlInput();
     }
 
+    // Hides the dialog and mobile input
     public close() {
         this.ownerScene.input.keyboard?.off('keydown', this.keyHandler);
         this.htmlInput.blur();
@@ -177,13 +184,17 @@ export class SaveTrackDialog extends Phaser.GameObjects.Container {
         this.setVisible(false);
     }
 
+    // Removes listeners and the mobile input
     public override destroy(fromScene?: boolean) {
         this.ownerScene.input.keyboard?.off('keydown', this.keyHandler);
         this.ownerScene.scale.off('resize', this.resizeHandler);
+        this.htmlInput.removeEventListener('input', this.htmlInputHandler);
+        this.htmlInput.removeEventListener('keydown', this.htmlKeyHandler);
         this.htmlInput.remove();
         super.destroy(fromScene);
     }
 
+    // Handles desktop keyboard input
     private handleKey(event: KeyboardEvent) {
         if (!this.visible || this.isSaving) return;
         if (document.activeElement === this.htmlInput) return;
@@ -218,6 +229,7 @@ export class SaveTrackDialog extends Phaser.GameObjects.Container {
         this.htmlInput.value = this.value;
     }
 
+    // Validates and saves the name
     private async submit() {
         if (this.isSaving) return;
 
@@ -241,12 +253,14 @@ export class SaveTrackDialog extends Phaser.GameObjects.Container {
         }
     }
 
+    // Refreshes visible typed text
     private updateInputText() {
         this.inputText.setText(this.value || 'TYPE NAME');
         this.inputText.setAlpha(this.value ? 1 : 0.42);
         this.counterText.setText(`${this.value.length}/${MAX_NAME_LENGTH}`);
     }
 
+    // Syncs mobile input into Phaser text
     private syncHtmlInputValue() {
         if (!this.visible || this.isSaving) return;
 
@@ -258,12 +272,14 @@ export class SaveTrackDialog extends Phaser.GameObjects.Container {
         this.updateInputText();
     }
 
+    // Opens the mobile keyboard
     private focusHtmlInput() {
         if (!this.visible) return;
 
         this.htmlInput.focus();
     }
 
+    // Repositions dialog content
     private refreshLayout() {
         const { width, height } = this.ownerScene.scale;
 
@@ -287,13 +303,14 @@ export class SaveTrackDialog extends Phaser.GameObjects.Container {
 
         const buttonWidth = Math.min(160, panelWidth * 0.5);
         const buttonStep = Math.max(52, panelHeight * 0.08);
-        const buttonCenterY = panelY + panelHeight * 0.35;
+        const buttonCenterY = panelY + panelHeight * 0.31;
         this.saveButton.resize(buttonWidth, 46, 15);
         this.cancelButton.resize(buttonWidth, 46, 15);
         this.saveButton.setPosition(panelX, buttonCenterY - buttonStep / 2);
         this.cancelButton.setPosition(panelX, buttonCenterY + buttonStep / 2);
     }
 
+    // Aligns the hidden HTML input with the Phaser field.
     private layoutHtmlInput(inputWidth: number, inputHeight: number) {
         const canvasBounds = this.ownerScene.game.canvas.getBoundingClientRect();
         const scaleX = canvasBounds.width / this.ownerScene.scale.width;

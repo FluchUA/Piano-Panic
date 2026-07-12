@@ -5,6 +5,7 @@ import { createPost } from '../core/post';
 
 export const menu = new Hono();
 
+// Creates the main app post from the subreddit menu
 menu.post('/post-create', async (c) => {
   try {
     const post = await createPost();

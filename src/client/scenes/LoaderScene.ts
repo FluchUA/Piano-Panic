@@ -6,9 +6,10 @@ export class LoaderScene extends Scene {
         super('LoaderScene');
     }
 
+    // Builds the first loading screen
     create() {
         const { width, height } = this.scale;
-        const firstLoadBackground = this.add.rectangle(0, 0, width, height, 0x5F0E0E, 1)
+        const firstLoadBackground = this.add.rectangle(0, 0, width, height, 0x2C0303, 1)
             .setOrigin(0);
         const firstLoadText = this.add.text(width / 2, height / 2, 'LOADING...', {
             fontSize: '42px',

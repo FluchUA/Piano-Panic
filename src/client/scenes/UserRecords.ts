@@ -40,6 +40,7 @@ export class UserRecordsScene extends Scene {
         super('UserRecordsScene');
     }
 
+    // Builds the records screen and starts the first load
     create() {
         this.isSceneAlive = true;
         this.loadRequestId += 1;
@@ -138,6 +139,7 @@ export class UserRecordsScene extends Scene {
         void this.loadTracks();
     }
 
+    // Loads one page of saved tracks
     private async loadTracks() {
         if (!this.isSceneAlive || !this.emptyText?.scene) return;
 
@@ -173,6 +175,7 @@ export class UserRecordsScene extends Scene {
         }
     }
 
+    // Shows help for the records screen
     private openInfo() {
         this.infoDialog.open(`
             Your personal collection of masterpieces! Publish your tracks to share them with the world and earn Notes.
@@ -180,10 +183,12 @@ export class UserRecordsScene extends Scene {
         `);
     }
 
+    // Checks that async results still belong to this scene
     private isCurrentLoad(requestId: number) {
         return this.isSceneAlive && this.loadRequestId === requestId;
     }
 
+    // Removes current track rows before re-rendering
     private destroyRows() {
         this.rowViews.forEach((view) => {
             if (view.row.scene) view.row.destroy(true);
@@ -191,6 +196,7 @@ export class UserRecordsScene extends Scene {
         this.rowViews = [];
     }
 
+    // Creates one visible track row
     private createTrackRow(track: TrackModel): TrackRowView {
         const row = this.add.container(0, 0);
         const panel = this.add.rectangle(0, 0, 320, 112, 0x150d0a, 0.78);
@@ -236,8 +242,8 @@ export class UserRecordsScene extends Scene {
             iconTexture: 'small_square_done_icon',
             iconAnimation: 'small_square_done_icon_active',
             onClick: () => this.confirmDialog.open({
-                title: 'PUBLISH RECORD?',
-                message: `After publishing, this tune stays in post history, cannot be deleted, and pays a ${PUBLISH_REWARD} note reward.`,
+                title: 'PUBLISH\nRECORD?',
+                message: `\nAfter publishing, this tune stays in post history, cannot be deleted, and pays a ${PUBLISH_REWARD} note reward`,
                 confirmLabel: 'Publish',
                 onConfirm: async () => {
                     try {
@@ -271,7 +277,7 @@ export class UserRecordsScene extends Scene {
             iconTexture: 'small_square_remove_icon',
             iconAnimation: 'small_square_remove_icon_active',
             onClick: () => this.confirmDialog.open({
-                title: 'DELETE RECORD?',
+                title: 'DELETE\nRECORD?',
                 message: 'This saved draft will disappear from your vinyl shelf.',
                 confirmLabel: 'Delete',
                 onConfirm: async () => {
@@ -287,6 +293,7 @@ export class UserRecordsScene extends Scene {
         return { row, panel, name, meta, status, playButton, publishButton, deleteButton };
     }
 
+    // Formats small track metadata
     private getTrackMeta(track: TrackModel) {
         const date = new Date(track.createdAt).toLocaleDateString('en-US', {
             month: 'short',
@@ -301,6 +308,7 @@ export class UserRecordsScene extends Scene {
         ].join('\n');
     }
 
+    // Repositions records for the current screen size
     private refreshLayout() {
         if (!this.isSceneAlive || !this.background?.scene) return;
 
@@ -316,14 +324,14 @@ export class UserRecordsScene extends Scene {
         this.cameras.resize(width, height);
         coverSceneBackground(this.background, width, height);
         this.title.setPosition(width / 2, Math.max(52, height * 0.085));
-        this.title.setFontSize(Math.max(26, Math.min(40, width * 0.07)));
+        this.title.setFontSize(Math.max(26, Math.min(40, width * 0.05)));
         this.title.setWordWrapWidth(Math.max(170, Math.min(280, width - 150)));
         this.backButton.setPosition(42, 42);
         this.infoButton.setPosition(width - 42, 42);
         this.emptyText.setPosition(width / 2, height * 0.52);
         this.emptyText.setWordWrapWidth(width * 0.78);
-        this.prevButton.setPosition(width / 2 - 38, height - 42);
-        this.nextButton.setPosition(width / 2 + 38, height - 42);
+        this.prevButton.setPosition(width / 2 - 38, height - 35);
+        this.nextButton.setPosition(width / 2 + 38, height - 35);
 
         this.rowViews.forEach((view, index) => {
             if (!view.row.scene || !view.panel.scene) return;

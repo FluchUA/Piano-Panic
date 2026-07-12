@@ -62,6 +62,7 @@ export class LoaderOverlay extends Phaser.GameObjects.Container {
         this.refreshLayout();
     }
 
+    // Removes global loader listeners
     public override destroy(fromScene?: boolean) {
         window.removeEventListener('SHOW_PHASER_LOADER', this.showHandler);
         window.removeEventListener('HIDE_PHASER_LOADER', this.hideHandler);
@@ -70,6 +71,7 @@ export class LoaderOverlay extends Phaser.GameObjects.Container {
         super.destroy(fromScene);
     }
 
+    // Chooses initial text or progress animation
     private updateVisibleContent() {
         this.firstLoadBackground.setVisible(this.isInitialLoad);
         this.firstLoadText.setVisible(this.isInitialLoad);
@@ -90,6 +92,7 @@ export class LoaderOverlay extends Phaser.GameObjects.Container {
         this.firstLoadText.setVisible(true);
     }
 
+    // Lazily creates the progress sprite
     private ensureProgressSprite() {
         if (this.progress || !this.scene.textures.exists('progress_anim')) return;
 
@@ -102,6 +105,7 @@ export class LoaderOverlay extends Phaser.GameObjects.Container {
         this.add(this.progress);
     }
 
+    // Resizes the loader overlay
     private refreshLayout() {
         const { width, height } = this.scene.scale;
 

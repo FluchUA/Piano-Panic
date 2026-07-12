@@ -56,21 +56,25 @@ export class InfoDialog extends Phaser.GameObjects.Container {
         cfg.scene.add.existing(this);
     }
 
+    // Opens the info dialog
     public open(text: string) {
         this.text.setText(text.trim());
         this.refreshLayout();
         this.setVisible(true);
     }
 
+    // Hides the dialog
     public close() {
         this.setVisible(false);
     }
 
+    // Removes resize listeners
     public override destroy(fromScene?: boolean) {
         this.ownerScene.scale.off('resize', this.resizeHandler);
         super.destroy(fromScene);
     }
 
+    // Repositions dialog content
     private refreshLayout() {
         const { width, height } = this.ownerScene.scale;
 

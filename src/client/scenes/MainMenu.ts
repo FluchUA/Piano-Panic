@@ -26,6 +26,7 @@ export class MainMenu extends Scene {
     super('MainMenu');
   }
 
+  // Builds the main menu screen
   create() {
     const user: UserResponse | undefined = this.registry.get('user');
 
@@ -133,6 +134,7 @@ export class MainMenu extends Scene {
     });
   }
 
+  // Shows the prestige rank explanation
   private openPrestigeInfo() {
     this.infoDialog.open(`
       Earn Notes by creating and rating tunes to climb the musical ladder!
@@ -140,6 +142,7 @@ export class MainMenu extends Scene {
     `);
   }
 
+  // Repositions the menu for the current screen size
   private refreshLayout() {
     const { width, height } = this.scale;
     const buttonWidth = Math.min(340, width * 0.76);

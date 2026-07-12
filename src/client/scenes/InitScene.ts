@@ -6,6 +6,7 @@ export class InitScene extends Scene {
         super('InitScene');
     }
 
+    // Loads user and post state before assets
     async create() {
         try {
             const [user, post] = await Promise.all([

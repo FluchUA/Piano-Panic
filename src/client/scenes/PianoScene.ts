@@ -166,6 +166,7 @@ export class PianoScene extends Scene {
         super('PianoScene');
     }
 
+    // Reads scene mode and resets old runtime state
     init(data?: PianoSceneData) {
         this.resetRuntimeState();
         this.mode = data?.mode ?? (data?.track ? 'playback' : 'compose');
@@ -173,6 +174,7 @@ export class PianoScene extends Scene {
         this.returnScene = data?.returnScene ?? (this.mode === 'playback' ? 'UserRecordsScene' : 'MainMenu');
     }
 
+    // Clears state reused by Phaser scene restarts
     private resetRuntimeState() {
         this.user = undefined;
         this.instrumentReady = Promise.resolve();
@@ -217,6 +219,7 @@ export class PianoScene extends Scene {
         this.playbackStartTimer = undefined;
     }
 
+    // Builds the piano scene
     create() {
         this.user = this.registry.get('user');
         this.currentInstrument = this.getInitialInstrument();
@@ -266,6 +269,7 @@ export class PianoScene extends Scene {
         }
     }
 
+    // Creates back and info buttons
     private createTopControls() {
         this.backButton = new SpriteButton({
             scene: this,
@@ -292,6 +296,7 @@ export class PianoScene extends Scene {
         });
     }
 
+    // Creates compose or playback controls
     private createModeControls() {
         if (this.mode === 'compose') {
             this.recordButton = new SpriteButton({
@@ -347,6 +352,7 @@ export class PianoScene extends Scene {
         });
     }
 
+    // Creates hidden draft action buttons
     private createTrackActionButtons() {
         this.publishButton = new SpriteButton({
             scene: this,
@@ -378,6 +384,7 @@ export class PianoScene extends Scene {
         this.deleteTrackButton.setVisible(false);
     }
 
+    // Creates instrument selector buttons
     private createInstrumentButtons() {
         this.instrumentGroup.removeAll(true);
 
@@ -402,6 +409,7 @@ export class PianoScene extends Scene {
         });
     }
 
+    // Repositions all piano scene UI
     private refreshLayout() {
         const { width, height } = this.scale;
         const titleY = Math.max(48, height * 0.075);
@@ -432,6 +440,7 @@ export class PianoScene extends Scene {
         this.updateTrackActionButtons();
     }
 
+    // Centers instrument buttons in one or two rows
     private layoutInstrumentButtons(width: number, y: number) {
         const buttons = this.instrumentGroup.list.filter((child) => child instanceof SpriteButton);
         const buttonSize = 50;
@@ -453,6 +462,7 @@ export class PianoScene extends Scene {
         return y + (rowCount - 1) * rowStep + buttonSize / 2;
     }
 
+    // Draws the animated piano and playable keys
     private drawPianoRig(width: number, height: number) {
         this.pianoGroup.removeAll(true);
         this.keyVisuals.clear();
@@ -493,7 +503,7 @@ export class PianoScene extends Scene {
                 this.getKeyTexture('white')
             ).setOrigin(0);
             key.setScale(whiteKeyScale);
-            key.play(this.getKeyAnimation('white', false));
+            this.playKeyAnimation(key, 'white', false);
 
             if (this.mode === 'compose') {
                 key.setInteractive({ useHandCursor: true });
@@ -515,7 +525,7 @@ export class PianoScene extends Scene {
             const key = this.add.sprite(x, startY, this.getKeyTexture('black'))
                 .setOrigin(0);
             key.setScale(blackKeyScale);
-            key.play(this.getKeyAnimation('black', false));
+            this.playKeyAnimation(key, 'black', false);
 
             if (this.mode === 'compose') {
                 key.setInteractive({ useHandCursor: true });
@@ -564,6 +574,7 @@ export class PianoScene extends Scene {
         }
     }
 
+    // Switches the piano background animation
     private updateInstrumentBackgroundVisual() {
         const pianoBackground = this.pianoBackground;
         if (!pianoBackground?.scene || !pianoBackground.active || !pianoBackground.anims) return;
@@ -572,6 +583,7 @@ export class PianoScene extends Scene {
         if (this.anims.exists(animationKey)) pianoBackground.play(animationKey, true);
     }
 
+    // Creates octave controls for one side
     private createOctaveControls(x: number, y: number, side: string) {
         const gap = 32;
         const down = this.createHoldControl(
@@ -592,6 +604,7 @@ export class PianoScene extends Scene {
         this.pianoGroup.add([down.button, up.button]);
     }
 
+    // Creates one hold-style octave button
     private createHoldControl(
         x: number,
         y: number,
@@ -617,6 +630,7 @@ export class PianoScene extends Scene {
         return { button };
     }
 
+    // Subscribes keyboard controls
     private setupKeyboardInput() {
         if (!this.input.keyboard || this.mode !== 'compose') return;
 
@@ -626,6 +640,7 @@ export class PianoScene extends Scene {
         this.input.keyboard.on('keyup', this.keyboardUpHandler);
     }
 
+    // Handles keyboard note and control presses
     private handleKeyboardDown(event: KeyboardEvent) {
         if (this.isInputBlocked()) return;
 
@@ -642,6 +657,7 @@ export class PianoScene extends Scene {
         if (keyName === ' ') this.toggleBottomPedal();
     }
 
+    // Handles keyboard note and control releases
     private handleKeyboardUp(event: KeyboardEvent) {
         if (this.isInputBlocked()) return;
 
@@ -656,14 +672,16 @@ export class PianoScene extends Scene {
         if (keyName === '.') this.clearOctaveHold('keyboard:.');
     }
 
+    // Checks if a dialog is blocking input
     private isInputBlocked() {
         return this.dialog.visible || this.confirmDialog.visible || this.saveDialog.visible;
     }
 
+    // Handles leaving the piano scene
     private handleBack() {
         if (this.mode === 'compose') {
             this.confirmDialog.open({
-                title: 'LEAVE STUDIO?',
+                title: 'LEAVE\nSTUDIO?',
                 message: 'Your unsaved tune will fade out',
                 confirmLabel: 'Leave',
                 onConfirm: () => {
@@ -677,6 +695,7 @@ export class PianoScene extends Scene {
         this.scene.start(this.returnScene);
     }
 
+    // Shows piano scene help
     private openInfo() {
         if (this.mode === 'compose') {
             this.dialog.open(`
@@ -689,6 +708,7 @@ export class PianoScene extends Scene {
         this.dialog.open('Playback mode shows the recorded tune on the keys. Use pause or restart any time');
     }
 
+    // Advances the record button state
     private handleRecordButton() {
         if (!this.isRecording && !this.recordingStopped) {
             this.startRecording();
@@ -708,6 +728,7 @@ export class PianoScene extends Scene {
         });
     }
 
+    // Starts a fresh recording
     private startRecording() {
         this.timeline = [];
         this.noteCount = 0;
@@ -725,6 +746,7 @@ export class PianoScene extends Scene {
         this.updateStatus();
     }
 
+    // Stops recording and keeps the take
     private stopRecording() {
         if (this.recordStartedAt !== null) {
             this.recordingElapsedMs = this.getRecordingElapsedMs();
@@ -738,6 +760,7 @@ export class PianoScene extends Scene {
         this.updateStatus();
     }
 
+    // Clears the current recording
     private clearRecording() {
         this.releaseAllNotes();
         this.timeline = [];
@@ -752,6 +775,7 @@ export class PianoScene extends Scene {
         this.updateStatus();
     }
 
+    // Opens saving when the take is long enough
     private async saveTrack() {
         if (this.isRecording) this.stopRecording();
 
@@ -766,6 +790,7 @@ export class PianoScene extends Scene {
         });
     }
 
+    // Sends the recording to the backend
     private async persistTrack(name: string) {
         try {
             const savedTrack = await RedditAPI.saveTrack({
@@ -784,18 +809,22 @@ export class PianoScene extends Scene {
         }
     }
 
+    // Provides a default draft name
     private createDefaultTrackName() {
         return 'Toon Tune';
     }
 
+    // Changes the record button icon
     private setRecordButtonIcon(texture: string) {
         this.recordButton?.setIcon(texture, `${texture}_active`);
     }
 
+    // Changes the playback button icon
     private setPlayButtonIcon(texture: string) {
         this.playButton?.setIcon(texture, `${texture}_active`);
     }
 
+    // Asks before publishing a draft
     private confirmPublishTrack() {
         if (!this.track) return;
 
@@ -809,6 +838,7 @@ export class PianoScene extends Scene {
         });
     }
 
+    // Asks before deleting a draft
     private confirmDeleteTrack() {
         if (!this.track) return;
 
@@ -822,6 +852,7 @@ export class PianoScene extends Scene {
         });
     }
 
+    // Publishes the current draft
     private async publishCurrentTrack() {
         if (!this.track) return;
 
@@ -847,6 +878,7 @@ export class PianoScene extends Scene {
         }
     }
 
+    // Deletes the current draft
     private async deleteCurrentTrack() {
         if (!this.track) return;
 
@@ -866,12 +898,14 @@ export class PianoScene extends Scene {
         }
     }
 
+    // Keeps draft actions hidden on this scene
     private updateTrackActionButtons() {
         // Temporarily hidden: draft management is handled from My Vinyl Records.
         this.publishButton?.setVisible(false);
         this.deleteTrackButton?.setVisible(false);
     }
 
+    // Starts a note from pointer or keyboard input
     private async playNote(noteName: string, inputId: string) {
         if (this.activeNotes[inputId]) return;
 
@@ -893,6 +927,7 @@ export class PianoScene extends Scene {
         this.triggeredInputs.add(inputId);
     }
 
+    // Releases a note from pointer or keyboard input
     private stopNote(inputId: string) {
         const fullNote = this.activeNotes[inputId];
         if (!fullNote) return;
@@ -914,6 +949,7 @@ export class PianoScene extends Scene {
         this.triggeredInputs.delete(inputId);
     }
 
+    // Starts the recording clock on first note
     private ensureRecordingStarted() {
         if (this.recordStartedAt !== null) return;
 
@@ -928,6 +964,7 @@ export class PianoScene extends Scene {
         this.updateTimeText();
     }
 
+    // Stores one timeline event
     private recordEvent(type: PianoEventType, value: string | number | boolean) {
         if (!this.isRecording || this.recordStartedAt === null) return;
         if (this.timeline.length >= this.maxTimelineEvents) return;
@@ -945,6 +982,7 @@ export class PianoScene extends Scene {
         }
     }
 
+    // Applies a temporary octave shift
     private setOctaveHold(source: string, offset: number) {
         if (this.mode !== 'compose') return;
 
@@ -957,6 +995,7 @@ export class PianoScene extends Scene {
         this.updateStatus();
     }
 
+    // Clears a temporary octave shift
     private clearOctaveHold(source: string) {
         if (this.mode !== 'compose') return;
 
@@ -969,6 +1008,7 @@ export class PianoScene extends Scene {
         this.updateStatus();
     }
 
+    // Resolves active octave holds
     private resolveOctaveOffset() {
         const values = [...this.octaveHolds.values()];
         if (values.includes(1)) return 1;
@@ -976,6 +1016,7 @@ export class PianoScene extends Scene {
         return 0;
     }
 
+    // Toggles piano sustain
     private toggleBottomPedal() {
         if (this.mode !== 'compose' || !this.supportsSustainPedal()) return;
 
@@ -990,6 +1031,7 @@ export class PianoScene extends Scene {
         this.updateStatus();
     }
 
+    // Starts or stops the metronome
     private async toggleMetronome() {
         if (this.mode !== 'compose') return;
 
@@ -1017,13 +1059,16 @@ export class PianoScene extends Scene {
         }
     }
 
+    // Updates the metronome animation
     private updateMetronomeVisual() {
         const metronome = this.metronomeSprite;
         if (!metronome?.scene || !metronome.active || !metronome.anims) return;
 
-        metronome.play(this.metronomeEnabled ? 'metronome_on' : 'metronome_off', true);
+        const animation = this.metronomeEnabled ? 'metronome_on' : 'metronome_off';
+        if (this.anims.exists(animation)) metronome.play(animation, true);
     }
 
+    // Advances the metronome click timing
     private advanceMetronomeFrame() {
         this.metronomeFrameStep = (this.metronomeFrameStep + 1) % 8;
         if (this.metronomeFrameStep === 2 || this.metronomeFrameStep === 6) {
@@ -1031,6 +1076,7 @@ export class PianoScene extends Scene {
         }
     }
 
+    // Lazily creates the metronome click synth
     private ensureMetronomeClickSynth() {
         if (this.metronomeClickSynth) return;
 
@@ -1047,6 +1093,7 @@ export class PianoScene extends Scene {
         }).toDestination();
     }
 
+    // Plays one soft metronome click
     private playMetronomeClick() {
         if (!this.metronomeClickSynth) return;
 
@@ -1055,31 +1102,38 @@ export class PianoScene extends Scene {
         this.metronomeBeat += 1;
     }
 
+    // Checks if sustain is active
     private isPedalActive() {
         return this.supportsSustainPedal() && this.bottomPedalEnabled;
     }
 
+    // Updates the sustain pedal animation
     private updateSustainPedalVisual(isEnabled: boolean) {
         const pedal = this.bottomPedalButton;
         if (!pedal?.scene || !pedal.active || !pedal.anims) return;
 
-        pedal.play(isEnabled ? 'sustain_on' : 'sustain_off', true);
+        const animation = isEnabled ? 'sustain_on' : 'sustain_off';
+        if (this.anims.exists(animation)) pedal.play(animation, true);
     }
 
+    // Limits sustain to supported instruments
     private supportsSustainPedal(instrument = this.currentInstrument) {
         return instrument === InstrumentId.DEFAULT_PIANO;
     }
 
+    // Returns the current recording time
     private getRecordingElapsedMs() {
         if (this.recordStartedAt === null) return this.recordingElapsedMs;
 
         return Math.min(this.time.now - this.recordStartedAt, this.getMaxDurationMs());
     }
 
+    // Returns the user's max track duration
     private getMaxDurationMs() {
         return (this.user?.maxTrackDuration ?? 30) * 1000;
     }
 
+    // Refreshes the remaining time text
     private updateTimeText() {
         if (this.mode !== 'compose') {
             this.timeText.setText('');
@@ -1096,10 +1150,12 @@ export class PianoScene extends Scene {
         if (remainingMs <= 0 && this.isRecording) this.stopRecording();
     }
 
+    // Refreshes compose status UI
     private updateStatus() {
         this.updateTimeText();
     }
 
+    // Schedules playback timeline events
     private async startPlayback() {
         if (!this.track || this.isPlaying) return;
         await this.ensureAudioReady();
@@ -1125,6 +1181,7 @@ export class PianoScene extends Scene {
         this.playbackTimers.push(finishTimer);
     }
 
+    // Toggles play and pause
     private togglePlayback() {
         if (this.isPlaying) {
             this.pausePlayback();
@@ -1134,6 +1191,7 @@ export class PianoScene extends Scene {
         void this.startPlayback();
     }
 
+    // Pauses playback and stores the offset
     private pausePlayback() {
         if (!this.isPlaying) return;
 
@@ -1142,12 +1200,14 @@ export class PianoScene extends Scene {
         this.setPlayButtonIcon('small_round_play_icon');
     }
 
+    // Restarts playback from the beginning
     private restartPlayback() {
         this.stopPlayback();
         this.playbackOffsetMs = 0;
         void this.startPlayback();
     }
 
+    // Stops playback and clears timers
     private stopPlayback(resetOffset = true, updateVisuals = true) {
         this.playbackTimers.forEach((timer) => timer.remove(false));
         this.playbackTimers = [];
@@ -1158,6 +1218,7 @@ export class PianoScene extends Scene {
         if (resetOffset) this.playbackStartedAt = 0;
     }
 
+    // Applies one recorded playback event
     private applyPlaybackEvent(event: PianoEvent) {
         if (event.type === PianoEventType.NoteOn && typeof event.value === 'string') {
             if (!this.synth) return;
@@ -1193,6 +1254,7 @@ export class PianoScene extends Scene {
         }
     }
 
+    // Releases all active notes
     private releaseAllNotes(updateVisuals = true) {
         Object.keys(this.activeNotes).forEach((key) => {
             const note = this.activeNotes[key];
@@ -1206,6 +1268,7 @@ export class PianoScene extends Scene {
         this.releaseSustainedNotes();
     }
 
+    // Releases notes held by sustain
     private releaseSustainedNotes() {
         this.sustainedNotes.forEach((note) => {
             this.releaseNote(note);
@@ -1213,6 +1276,7 @@ export class PianoScene extends Scene {
         this.sustainedNotes.clear();
     }
 
+    // Releases one sustained note if needed
     private releaseSustainedNote(note: string) {
         if (!this.sustainedNotes.has(note)) return;
 
@@ -1220,10 +1284,12 @@ export class PianoScene extends Scene {
         this.sustainedNotes.delete(note);
     }
 
+    // Sends a note release to the synth
     private releaseNote(note: string) {
         this.synth?.triggerRelease(note);
     }
 
+    // Updates a key pressed state
     private highlightKey(noteName: string, isDown: boolean) {
         const keyVisual = this.keyVisuals.get(noteName);
         if (!keyVisual) return;
@@ -1235,38 +1301,47 @@ export class PianoScene extends Scene {
             this.pressedKeyVisuals.delete(noteName);
         }
 
-        keyVisual.sprite.play(this.getKeyAnimation(keyVisual.color, isDown), true);
+        this.playKeyAnimation(keyVisual.sprite, keyVisual.color, isDown);
     }
 
+    // Refreshes all key sprites after octave changes
     private refreshKeyAnimations() {
         this.keyVisuals.forEach((keyVisual, noteName) => {
             if (!keyVisual.sprite.scene || !keyVisual.sprite.active) return;
 
-            keyVisual.sprite.play(
-                this.getKeyAnimation(keyVisual.color, this.pressedKeyVisuals.has(noteName)),
-                true
-            );
+            this.playKeyAnimation(keyVisual.sprite, keyVisual.color, this.pressedKeyVisuals.has(noteName));
         });
     }
 
+    // Safely plays one key animation
+    private playKeyAnimation(sprite: Phaser.GameObjects.Sprite, color: PianoKeyColor, isPressed: boolean) {
+        const animation = this.getKeyAnimation(color, isPressed);
+        if (sprite.scene && sprite.active && this.anims.exists(animation)) sprite.play(animation, true);
+    }
+
+    // Chooses the key texture for the octave tier
     private getKeyTexture(color: PianoKeyColor) {
         return `${color}_key_${this.getKeyTier()}`;
     }
 
+    // Builds the key animation name
     private getKeyAnimation(color: PianoKeyColor, isPressed: boolean) {
         return `${this.getKeyTexture(color)}_${isPressed ? 'pressed' : 'idle'}`;
     }
 
+    // Chooses low, middle, or high key art
     private getKeyTier(): PianoKeyTier {
         if (this.currentOctaveOffset < 0) return 'down';
         if (this.currentOctaveOffset > 0) return 'up';
         return 'middle';
     }
 
+    // Removes octave number from a note
     private getNoteName(fullNote: string) {
         return fullNote.replace(/[0-9]/g, '');
     }
 
+    // Reads the starting instrument
     private getInitialInstrument() {
         if (this.track?.instrumentId) {
             return this.getInstrumentById(this.track.instrumentId);
@@ -1275,11 +1350,13 @@ export class PianoScene extends Scene {
         return InstrumentId.DEFAULT_PIANO;
     }
 
+    // Converts saved instrument ids safely
     private getInstrumentById(id: string) {
         const found = Object.values(InstrumentId).find((instrument) => instrument === id);
         return found ?? InstrumentId.DEFAULT_PIANO;
     }
 
+    // Lists instruments the user can use
     private getAvailableInstruments(): InstrumentOption[] {
         const instruments: InstrumentOption[] = [
             { id: InstrumentId.DEFAULT_PIANO, name: 'PIANO' },
@@ -1293,6 +1370,7 @@ export class PianoScene extends Scene {
         return instruments;
     }
 
+    // Switches synth and visuals for an instrument
     private changeInstrument(instrument: InstrumentId) {
         const wasPedalActive = this.isPedalActive();
         if (!this.supportsSustainPedal(instrument)) {
@@ -1358,6 +1436,7 @@ export class PianoScene extends Scene {
         this.synth = synth;
     }
 
+    // Reads preloaded sample buffers
     private getPreloadedSampleBuffers(instrument: SampledInstrumentId): Record<string, AudioBuffer> | null {
         const buffers: Record<string, AudioBuffer> = {};
         const samples = AUDIO_SAMPLE_ASSETS.filter((sample) => sample.instrument === instrument);
@@ -1372,6 +1451,7 @@ export class PianoScene extends Scene {
         return buffers;
     }
 
+    // Builds fallback sample urls
     private getFallbackSampleUrls(instrument: SampledInstrumentId): Record<string, string> {
         const urls: Record<string, string> = {};
         const samples = AUDIO_SAMPLE_ASSETS.filter((sample) => sample.instrument === instrument);
@@ -1383,11 +1463,13 @@ export class PianoScene extends Scene {
         return urls;
     }
 
+    // Starts Tone before playing sound
     private async ensureAudioReady() {
         if (Tone.context.state !== 'running') await Tone.start();
         await this.instrumentReady;
     }
 
+    // Cleans timers, listeners, and synths
     private shutdownScene() {
         this.scale.off('resize', this.resizeHandler);
         this.input.keyboard?.off('keydown', this.keyboardDownHandler);

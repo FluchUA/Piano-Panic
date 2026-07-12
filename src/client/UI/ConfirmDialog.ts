@@ -99,6 +99,7 @@ export class ConfirmDialog extends Phaser.GameObjects.Container {
         cfg.scene.add.existing(this);
     }
 
+    // Opens a confirm dialog
     public open(cfg: OpenConfirmConfig) {
         this.onConfirm = cfg.onConfirm;
         this.title.setText(cfg.title);
@@ -109,15 +110,18 @@ export class ConfirmDialog extends Phaser.GameObjects.Container {
         this.setVisible(true);
     }
 
+    // Hides the dialog
     public close() {
         this.setVisible(false);
     }
 
+    // Removes resize listeners
     public override destroy(fromScene?: boolean) {
         this.ownerScene.scale.off('resize', this.resizeHandler);
         super.destroy(fromScene);
     }
 
+    // Repositions dialog content
     private refreshLayout() {
         const { width, height } = this.ownerScene.scale;
 
@@ -129,7 +133,7 @@ export class ConfirmDialog extends Phaser.GameObjects.Container {
         const panelX = this.panel.x;
         const panelY = this.panel.y;
 
-        this.title.setPosition(panelX, panelY - panelHeight * 0.24);
+        this.title.setPosition(panelX, panelY - panelHeight * 0.26);
         this.title.setWordWrapWidth(panelWidth * 0.68);
         this.message.setPosition(panelX, panelY - panelHeight * 0.03);
         this.message.setWordWrapWidth(panelWidth * 0.7);

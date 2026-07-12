@@ -57,6 +57,7 @@ export const RedditAPI = {
         apiRequest<DebugResetShopResponse>('/api/debug/reset-shop', 'POST'),
 };
 
+// Wraps API calls with the global loader
 async function apiRequest<T>(
     url: string,
     method: 'GET' | 'POST' = 'GET',

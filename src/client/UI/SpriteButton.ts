@@ -73,12 +73,14 @@ export class SpriteButton extends Phaser.GameObjects.Container {
         cfg.scene.add.existing(this);
     }
 
+    // Updates disabled visual state
     public setDisabled(isDisabled: boolean, showDisabledFrame = true) {
         this.disabled = isDisabled;
         this.showDisabledFrame = showDisabledFrame;
         this.refreshAnimationState();
     }
 
+    // Changes the icon sprite
     public setIcon(texture: string, animation: string) {
         this.iconAnimation = animation;
 
@@ -95,6 +97,7 @@ export class SpriteButton extends Phaser.GameObjects.Container {
         this.refreshAnimationState();
     }
 
+    // Shows text instead of an icon
     public setText(value: string) {
         if (!this.text) {
             this.text = this.scene.add.text(0, 0, value, {
@@ -113,12 +116,14 @@ export class SpriteButton extends Phaser.GameObjects.Container {
         this.icon?.setVisible(false);
     }
 
+    // Resizes the square button
     public resize(size: number) {
         this.size = size;
         this.setSize(size, size);
         this.applyVisualScale(1);
     }
 
+    // Wires pointer interactions
     private bindInput() {
         this.background.on('pointerover', () => {
             if (!this.disabled) this.applyVisualScale(1.05);
@@ -144,12 +149,14 @@ export class SpriteButton extends Phaser.GameObjects.Container {
         });
     }
 
+    // Ends a hold interaction
     private releasePress() {
         this.isPressed = false;
         this.applyVisualScale(1);
         this.onRelease?.();
     }
 
+    // Applies current animation or disabled frame
     private refreshAnimationState() {
         if (!this.scene || !this.active || !this.background?.scene || !this.background.active) return;
 
@@ -177,6 +184,7 @@ export class SpriteButton extends Phaser.GameObjects.Container {
         this.applyVisualScale(1);
     }
 
+    // Applies hover or press scale
     private applyVisualScale(scale: number) {
         if (!this.background?.scene || !this.background.active) return;
 

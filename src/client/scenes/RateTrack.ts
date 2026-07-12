@@ -34,6 +34,7 @@ export class RateTrackScene extends Scene {
         super('RateTrackScene');
     }
 
+    // Builds the rate or owner summary screen
     create() {
         this.ratingButtons = [];
         const post: PostInfoResponse | undefined = this.registry.get('post');
@@ -136,6 +137,7 @@ export class RateTrackScene extends Scene {
         });
     }
 
+    // Creates the 1-10 rating buttons
     private createRatingButtons() {
         for (let rating = 1; rating <= 10; rating += 1) {
             const button = new SpriteButton({
@@ -154,11 +156,13 @@ export class RateTrackScene extends Scene {
         }
     }
 
+    // Shows help text for the current viewer
     private openInfo() {
         this.dialog.open(this.isAuthor ? 'Your masterpiece is out in the wild! Check this space anytime to see your total listener count and track your current average score' 
             : 'Time to be the judge! Listen closely to the track first, then rate it from 1 to 10. Every unique rating pockets you Notes to spend at The music emporium!');
     }
 
+    // Marks a listen once and opens playback
     private async listen() {
         if (!this.isAuthor && !this.hasListened) {
             const response = await RedditAPI.listenTrack({ trackId: this.track.id });
@@ -176,6 +180,7 @@ export class RateTrackScene extends Scene {
         });
     }
 
+    // Submits the user's one-time rating
     private async submitRating(rating: number) {
         if (!this.hasListened || this.userVote !== null) return;
 
@@ -193,6 +198,7 @@ export class RateTrackScene extends Scene {
         }
     }
 
+    // Refreshes listener and rating text
     private updateStatsText() {
         this.statsText.setText([
             `Total Listeners: ${this.listenerCount}`,
@@ -212,6 +218,7 @@ export class RateTrackScene extends Scene {
         this.helperText.setText(this.hasListened ? 'Pick your score!' : 'Shhh... Quiet on set! Listen first!');
     }
 
+    // Builds the author prestige text
     private getAuthorIntroText() {
         return [
             `${getPrestigeTitle(this.authorNotes)} - ${this.authorName}`,
@@ -219,6 +226,7 @@ export class RateTrackScene extends Scene {
         ].join('\n');
     }
 
+    // Enables or locks rating buttons
     private updateRatingButtons() {
         this.ratingButtons.forEach((button, index) => {
             const rating = index + 1;
@@ -228,6 +236,7 @@ export class RateTrackScene extends Scene {
         });
     }
 
+    // Keeps post data fresh after listen or rating
     private syncPostRegistry() {
         const post: PostInfoResponse | undefined = this.registry.get('post');
         if (!post || post.mode !== AppMode.RATE) return;
@@ -251,6 +260,7 @@ export class RateTrackScene extends Scene {
         });
     }
 
+    // Repositions rating UI for the current screen size
     private refreshLayout() {
         const { width, height } = this.scale;
         const gridCols = 5;
@@ -258,7 +268,7 @@ export class RateTrackScene extends Scene {
         const ratingButtonSize = 60;
         const startX = width / 2 - ((gridCols - 1) * (ratingButtonSize + gap)) / 2;
         const startY = height * 0.45;
-        const titleY = Math.max(58, height * 0.14);
+        const titleY = Math.max(58, height * 0.1);
         const listenY = height - Math.max(88, height * 0.14);
 
         this.cameras.resize(width, height);

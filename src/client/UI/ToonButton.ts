@@ -61,10 +61,12 @@ export class ToonButton extends Phaser.GameObjects.Container {
         cfg.scene.add.existing(this);
     }
 
+    // Updates the button text
     public setLabel(text: string) {
         this.label.setText(text);
     }
 
+    // Updates disabled visual state
     public setDisabled(isDisabled: boolean) {
         this.disabled = isDisabled;
         this.setAlpha(isDisabled ? 0.55 : 1);
@@ -73,6 +75,7 @@ export class ToonButton extends Phaser.GameObjects.Container {
         this.label.setScale(1);
     }
 
+    // Resizes the button
     public resize(width: number, height: number, fontSize?: number) {
         this.background.setSize(width, height);
         this.label.setWordWrapWidth(width - 24);
