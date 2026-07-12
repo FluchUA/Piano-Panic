@@ -151,22 +151,24 @@ export class SpriteButton extends Phaser.GameObjects.Container {
     }
 
     private refreshAnimationState() {
+        if (!this.scene || !this.active || !this.background?.scene || !this.background.active) return;
+
         const shouldUseDisabledFrame = this.disabled && this.showDisabledFrame && this.backgroundDisabledFrame !== undefined;
 
         if (shouldUseDisabledFrame) {
-            this.background.anims.stop();
+            this.background.anims?.stop();
             this.background.setFrame(this.backgroundDisabledFrame ?? 0);
         } else if (this.scene.anims.exists(this.backgroundAnimation)) {
             this.background.play(this.backgroundAnimation, true);
         }
 
-        if (!this.icon) {
+        if (!this.icon || !this.icon.scene || !this.icon.active) {
             this.applyVisualScale(1);
             return;
         }
 
         if (this.disabled && this.showDisabledFrame) {
-            this.icon.anims.stop();
+            this.icon.anims?.stop();
             this.icon.setFrame(0);
         } else if (this.iconAnimation && this.scene.anims.exists(this.iconAnimation)) {
             this.icon.play(this.iconAnimation, true);
@@ -176,9 +178,11 @@ export class SpriteButton extends Phaser.GameObjects.Container {
     }
 
     private applyVisualScale(scale: number) {
+        if (!this.background?.scene || !this.background.active) return;
+
         const size = this.size * scale;
         this.background.setDisplaySize(size, size);
-        this.icon?.setDisplaySize(size, size);
+        if (this.icon?.scene && this.icon.active) this.icon.setDisplaySize(size, size);
         this.text?.setScale(scale);
     }
 }

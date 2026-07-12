@@ -1,6 +1,5 @@
 import Phaser from 'phaser';
 import { TextSpriteButton } from './TextSpriteButton';
-import { ToonButton } from './ToonButton';
 import { fitImageByScreenMinSide } from '../utils/sceneBackground';
 
 type SaveTrackDialogConfig = {
@@ -21,9 +20,10 @@ export class SaveTrackDialog extends Phaser.GameObjects.Container {
     private helper: Phaser.GameObjects.Text;
     private inputBox: Phaser.GameObjects.Rectangle;
     private inputText: Phaser.GameObjects.Text;
+    private htmlInput: HTMLInputElement;
     private errorText: Phaser.GameObjects.Text;
     private counterText: Phaser.GameObjects.Text;
-    private saveButton: ToonButton;
+    private saveButton: TextSpriteButton;
     private cancelButton: TextSpriteButton;
     private resizeHandler: () => void;
     private keyHandler: (event: KeyboardEvent) => void;
@@ -61,6 +61,8 @@ export class SaveTrackDialog extends Phaser.GameObjects.Container {
 
         this.inputBox = cfg.scene.add.rectangle(width / 2, height * 0.47, 260, 54, 0xffffff)
             .setStrokeStyle(4, 0x2f2118);
+        this.inputBox.setInteractive({ useHandCursor: true });
+        this.inputBox.on('pointerdown', () => this.focusHtmlInput());
 
         this.inputText = cfg.scene.add.text(width / 2, height * 0.47, '', {
             color: '#2f2118',
@@ -81,12 +83,14 @@ export class SaveTrackDialog extends Phaser.GameObjects.Container {
             align: 'center',
         }).setOrigin(0.5);
 
-        this.saveButton = new ToonButton({
+        this.saveButton = new TextSpriteButton({
             scene: cfg.scene,
             x: width / 2 - 88,
             y: height * 0.69,
             width: 150,
-            height: 48,
+            height: 46,
+            backgroundTexture: 'small_text_button_bg',
+            backgroundAnimation: 'small_text_button_bg_active',
             label: 'SAVE',
             onClick: () => this.submit(),
         });
@@ -103,6 +107,33 @@ export class SaveTrackDialog extends Phaser.GameObjects.Container {
             contentAnimation: 'small_text_button_cancel_active',
             onClick: () => this.close(),
         });
+
+        this.htmlInput = document.createElement('input');
+        this.htmlInput.type = 'text';
+        this.htmlInput.maxLength = MAX_NAME_LENGTH;
+        this.htmlInput.inputMode = 'text';
+        this.htmlInput.autocomplete = 'off';
+        this.htmlInput.spellcheck = false;
+        this.htmlInput.style.position = 'fixed';
+        this.htmlInput.style.zIndex = '10000';
+        this.htmlInput.style.opacity = '0.01';
+        this.htmlInput.style.border = '0';
+        this.htmlInput.style.padding = '0';
+        this.htmlInput.style.margin = '0';
+        this.htmlInput.style.background = 'transparent';
+        this.htmlInput.style.color = 'transparent';
+        this.htmlInput.style.caretColor = 'transparent';
+        this.htmlInput.style.fontSize = '16px';
+        this.htmlInput.style.outline = 'none';
+        this.htmlInput.style.display = 'none';
+        this.htmlInput.addEventListener('input', () => this.syncHtmlInputValue());
+        this.htmlInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                void this.submit();
+            }
+        });
+        document.body.appendChild(this.htmlInput);
 
         this.add([
             this.background,
@@ -131,30 +162,38 @@ export class SaveTrackDialog extends Phaser.GameObjects.Container {
         this.errorText.setText('');
         this.saveButton.setDisabled(false);
         this.updateInputText();
+        this.htmlInput.value = this.value;
+        this.htmlInput.style.display = 'block';
         this.refreshLayout();
         this.setVisible(true);
         this.ownerScene.input.keyboard?.on('keydown', this.keyHandler);
+        this.focusHtmlInput();
     }
 
     public close() {
         this.ownerScene.input.keyboard?.off('keydown', this.keyHandler);
+        this.htmlInput.blur();
+        this.htmlInput.style.display = 'none';
         this.setVisible(false);
     }
 
     public override destroy(fromScene?: boolean) {
         this.ownerScene.input.keyboard?.off('keydown', this.keyHandler);
         this.ownerScene.scale.off('resize', this.resizeHandler);
+        this.htmlInput.remove();
         super.destroy(fromScene);
     }
 
     private handleKey(event: KeyboardEvent) {
         if (!this.visible || this.isSaving) return;
+        if (document.activeElement === this.htmlInput) return;
 
         if (event.key === 'Backspace') {
             event.preventDefault();
             this.value = this.value.slice(0, -1);
             this.errorText.setText('');
             this.updateInputText();
+            this.htmlInput.value = this.value;
             return;
         }
 
@@ -176,6 +215,7 @@ export class SaveTrackDialog extends Phaser.GameObjects.Container {
         this.value = `${this.value}${event.key}`;
         this.errorText.setText('');
         this.updateInputText();
+        this.htmlInput.value = this.value;
     }
 
     private async submit() {
@@ -207,6 +247,23 @@ export class SaveTrackDialog extends Phaser.GameObjects.Container {
         this.counterText.setText(`${this.value.length}/${MAX_NAME_LENGTH}`);
     }
 
+    private syncHtmlInputValue() {
+        if (!this.visible || this.isSaving) return;
+
+        this.value = this.htmlInput.value
+            .replace(/[^a-zA-Z0-9 !?'-]/g, '')
+            .slice(0, MAX_NAME_LENGTH);
+        this.htmlInput.value = this.value;
+        this.errorText.setText('');
+        this.updateInputText();
+    }
+
+    private focusHtmlInput() {
+        if (!this.visible) return;
+
+        this.htmlInput.focus();
+    }
+
     private refreshLayout() {
         const { width, height } = this.ownerScene.scale;
 
@@ -224,15 +281,27 @@ export class SaveTrackDialog extends Phaser.GameObjects.Container {
         this.inputBox.setPosition(panelX, panelY - panelHeight * 0.03);
         this.inputBox.setSize(inputWidth, 54);
         this.inputText.setPosition(panelX, panelY - panelHeight * 0.03);
+        this.layoutHtmlInput(inputWidth, 54);
         this.counterText.setPosition(panelX, panelY + panelHeight * 0.08);
         this.errorText.setPosition(panelX, panelY + panelHeight * 0.16);
 
         const buttonWidth = Math.min(160, panelWidth * 0.5);
         const buttonStep = Math.max(52, panelHeight * 0.08);
         const buttonCenterY = panelY + panelHeight * 0.35;
-        this.saveButton.resize(buttonWidth, 48, 18);
+        this.saveButton.resize(buttonWidth, 46, 15);
         this.cancelButton.resize(buttonWidth, 46, 15);
         this.saveButton.setPosition(panelX, buttonCenterY - buttonStep / 2);
         this.cancelButton.setPosition(panelX, buttonCenterY + buttonStep / 2);
+    }
+
+    private layoutHtmlInput(inputWidth: number, inputHeight: number) {
+        const canvasBounds = this.ownerScene.game.canvas.getBoundingClientRect();
+        const scaleX = canvasBounds.width / this.ownerScene.scale.width;
+        const scaleY = canvasBounds.height / this.ownerScene.scale.height;
+
+        this.htmlInput.style.left = `${canvasBounds.left + (this.inputBox.x - inputWidth / 2) * scaleX}px`;
+        this.htmlInput.style.top = `${canvasBounds.top + (this.inputBox.y - inputHeight / 2) * scaleY}px`;
+        this.htmlInput.style.width = `${inputWidth * scaleX}px`;
+        this.htmlInput.style.height = `${inputHeight * scaleY}px`;
     }
 }

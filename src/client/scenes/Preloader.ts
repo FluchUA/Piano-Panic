@@ -31,8 +31,12 @@ export class Preloader extends Scene {
     this.load.spritesheet('middle_text_button_records', 'UI/text_button/middle/middle_text_button_records_anim.png', { frameWidth: 336, frameHeight: 54 });
     this.load.spritesheet('small_text_button_bg', 'UI/text_button/small/small_text_button_bg_anim.png', { frameWidth: 190, frameHeight: 54 });
     this.load.spritesheet('small_text_button_cancel', 'UI/text_button/small/small_text_button_cancel_anim.png', { frameWidth: 190, frameHeight: 54 });
+    this.load.spritesheet('small_text_button_clear', 'UI/text_button/small/small_text_button_clear_anim.png', { frameWidth: 190, frameHeight: 54 });
+    this.load.spritesheet('small_text_button_delete', 'UI/text_button/small/small_text_button_delete_anim.png', { frameWidth: 190, frameHeight: 54 });
     this.load.spritesheet('small_text_button_leave', 'UI/text_button/small/small_text_button_leave_anim.png', { frameWidth: 190, frameHeight: 54 });
     this.load.spritesheet('small_text_button_ok', 'UI/text_button/small/small_text_button_ok_anim.png', { frameWidth: 190, frameHeight: 54 });
+    this.load.spritesheet('small_text_button_publish', 'UI/text_button/small/small_text_button_publish_anim.png', { frameWidth: 190, frameHeight: 54 });
+    this.load.spritesheet('small_text_button_save', 'UI/text_button/small/small_text_button_save_anim.png', { frameWidth: 190, frameHeight: 54 });
     this.load.spritesheet('small_round_button_bg', 'UI/round_button/small/small_round_button_bg.png', { frameWidth: 58, frameHeight: 58 });
     this.load.spritesheet('small_round_pause_icon', 'UI/round_button/small/small_round_pause_icon_anim.png', { frameWidth: 58, frameHeight: 58 });
     this.load.spritesheet('small_round_play_icon', 'UI/round_button/small/small_round_play_icon_anim.png', { frameWidth: 58, frameHeight: 58 });
@@ -49,7 +53,9 @@ export class Preloader extends Scene {
     this.load.spritesheet('small_square_remove_icon', 'UI/square_button/small/small_square_remove_icon_anim.png', { frameWidth: 50, frameHeight: 50 });
     this.load.spritesheet('arrow_button', 'UI/arrow_button_anim.png', { frameWidth: 50, frameHeight: 50 });
     this.load.spritesheet('progress_anim', 'progress_anim.png', { frameWidth: 500, frameHeight: 500 });
+    this.load.image('currency_icon', 'currency_icon.png');
     this.load.spritesheet('currency', 'currency_anim.png', { frameWidth: 80, frameHeight: 60 });
+    this.load.spritesheet('mini_clock', 'mini_clock_anim.png', { frameWidth: 50, frameHeight: 50 });
     this.load.spritesheet('metronome', 'metronome_anim.png', { frameWidth: 59, frameHeight: 120 });
     this.load.spritesheet('sustain', 'sustain_anim.png', { frameWidth: 50, frameHeight: 30 });
     this.load.spritesheet('piano_hold_bg', 'background/Instruments/piano_hold_bg.png', { frameWidth: 540, frameHeight: 470 });
@@ -129,6 +135,13 @@ export class Preloader extends Scene {
       repeat: -1,
     });
 
+    this.anims.create({
+      key: 'mini_clock_active',
+      frames: this.anims.generateFrameNumbers('mini_clock', { start: 0, end: 7 }),
+      frameRate: 8,
+      repeat: -1,
+    });
+
     INSTRUMENT_MINI_ASSETS.forEach(({ texture }) => {
       this.anims.create({
         key: `${texture}_active`,
@@ -163,8 +176,12 @@ export class Preloader extends Scene {
       'middle_text_button_listen',
       'middle_text_button_records',
       'small_text_button_cancel',
+      'small_text_button_clear',
+      'small_text_button_delete',
       'small_text_button_leave',
       'small_text_button_ok',
+      'small_text_button_publish',
+      'small_text_button_save',
       'small_round_pause_icon',
       'small_round_play_icon',
       'small_round_record_icon',

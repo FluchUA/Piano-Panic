@@ -22,7 +22,7 @@ const INSTRUMENT_MINI_TEXTURES: Record<InstrumentId, string> = {
 };
 
 const SHOP_ITEM_MINI_TEXTURES: Record<ShopItem, string | null> = {
-    [ShopItem.TIME_PLUS_5]: null,
+    [ShopItem.TIME_PLUS_5]: 'mini_clock',
     [ShopItem.SYNTH_PIANO]: 'mini_synth_hold_bg',
     [ShopItem.ORGAN]: 'mini_organ_hold_bg',
     [ShopItem.RETRO]: 'mini_retro_hold_bg',

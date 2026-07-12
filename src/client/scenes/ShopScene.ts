@@ -1,6 +1,7 @@
 import Phaser, { Scene } from 'phaser';
 import { CurrencyWidget } from '../UI/CurrencyWidget';
 import { SpriteButton } from '../UI/SpriteButton';
+import { TextSpriteButton } from '../UI/TextSpriteButton';
 import { ToonButton } from '../UI/ToonButton';
 import { ConfirmDialog } from '../UI/ConfirmDialog';
 import { InfoDialog } from '../UI/InfoDialog';
@@ -22,7 +23,7 @@ type ShopItemView = {
     panel: Phaser.GameObjects.Rectangle;
     art: Phaser.GameObjects.Container;
     title: Phaser.GameObjects.Text;
-    button: ToonButton;
+    button: TextSpriteButton;
 };
 
 const SHOP_ITEMS: ShopEntry[] = [
@@ -121,13 +122,19 @@ export class ShopScene extends Scene {
             align: 'center',
         }).setOrigin(0.5);
         const art = this.createShopArt(item);
-        const button = new ToonButton({
+        const button = new TextSpriteButton({
             scene: this,
             x: 0,
             y: 52,
             width: 96,
             height: 38,
+            backgroundTexture: 'small_text_button_bg',
+            backgroundAnimation: 'small_text_button_bg_active',
             label: this.getItemButtonLabel(item),
+            labelStrokeThickness: 0,
+            inlineIconTexture: 'currency_icon',
+            inlineIconMaxHeight: 17,
+            inlineIconGap: 3,
             fontSize: 13,
             onClick: () => this.buyItem(item),
         });
@@ -149,16 +156,6 @@ export class ShopScene extends Scene {
             return art;
         }
 
-        const placeholder = this.add.rectangle(0, 0, 50, 50, 0x32231c, 1)
-            .setStrokeStyle(2, 0xffffff);
-        const label = this.add.text(0, 0, '+5s', {
-            fontSize: '15px',
-            color: '#f8d66d',
-            fontStyle: 'bold',
-            stroke: '#2f2118',
-            strokeThickness: 3,
-        }).setOrigin(0.5);
-        art.add([placeholder, label]);
         return art;
     }
 
@@ -250,7 +247,7 @@ export class ShopScene extends Scene {
     }
 
     private getItemButtonLabel(item: ShopEntry) {
-        return this.isItemOwned(item) ? 'SOLD' : `${item.price} NOTES`;
+        return this.isItemOwned(item) ? 'SOLD' : String(item.price);
     }
 
     private isItemOwned(item: ShopEntry) {

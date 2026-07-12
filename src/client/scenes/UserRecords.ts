@@ -25,6 +25,7 @@ export class UserRecordsScene extends Scene {
     private title!: Phaser.GameObjects.Text;
     private emptyText!: Phaser.GameObjects.Text;
     private backButton!: SpriteButton;
+    private infoButton!: SpriteButton;
     private prevButton!: SpriteButton;
     private nextButton!: SpriteButton;
     private infoDialog!: InfoDialog;
@@ -69,6 +70,18 @@ export class UserRecordsScene extends Scene {
             onClick: () => {
                 this.scene.start('MainMenu');
             },
+        });
+
+        this.infoButton = new SpriteButton({
+            scene: this,
+            x: 0,
+            y: 0,
+            size: 70,
+            backgroundTexture: 'middle_round_button_bg',
+            backgroundAnimation: 'middle_round_button_bg_active',
+            iconTexture: 'middle_round_info_icon',
+            iconAnimation: 'middle_round_info_icon_active',
+            onClick: () => this.openInfo(),
         });
 
         this.emptyText = this.add.text(0, 0, 'No records yet. Compose your first tune!', {
@@ -158,6 +171,13 @@ export class UserRecordsScene extends Scene {
             if (!this.isCurrentLoad(requestId)) return;
             this.infoDialog.open(error instanceof Error ? error.message : 'Failed to load records');
         }
+    }
+
+    private openInfo() {
+        this.infoDialog.open(`
+            Your personal collection of masterpieces! Publish your tracks to share them with the world and earn Notes.
+            \nOnce published, a track is locked and cannot be deleted
+        `);
     }
 
     private isCurrentLoad(requestId: number) {
@@ -299,6 +319,7 @@ export class UserRecordsScene extends Scene {
         this.title.setFontSize(Math.max(26, Math.min(40, width * 0.07)));
         this.title.setWordWrapWidth(Math.max(170, Math.min(280, width - 150)));
         this.backButton.setPosition(42, 42);
+        this.infoButton.setPosition(width - 42, 42);
         this.emptyText.setPosition(width / 2, height * 0.52);
         this.emptyText.setWordWrapWidth(width * 0.78);
         this.prevButton.setPosition(width / 2 - 38, height - 42);

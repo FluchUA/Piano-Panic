@@ -1,6 +1,7 @@
 import Phaser, { Scene } from 'phaser';
 
 import { CurrencyWidget } from '../UI/CurrencyWidget';
+import { InfoDialog } from '../UI/InfoDialog';
 import { TextSpriteButton } from '../UI/TextSpriteButton';
 import { getPrestigeTitle } from '../../shared/economy';
 import { coverSceneBackground } from '../utils/sceneBackground';
@@ -17,6 +18,8 @@ export class MainMenu extends Scene {
   private btnShop!: TextSpriteButton;
 
   private currency!: CurrencyWidget;
+  private infoDialog!: InfoDialog;
+  private prestigePulse: Phaser.Tweens.Tween | undefined;
   private resizeHandler = () => this.refreshLayout();
 
   constructor() {
@@ -52,6 +55,22 @@ export class MainMenu extends Scene {
       stroke: '#2f2118',
       strokeThickness: 4,
     }).setOrigin(0.5);
+    this.prestigeText.setInteractive({ useHandCursor: true });
+    this.prestigeText.on('pointerout', () => this.prestigeText.setAlpha(1));
+    this.prestigeText.on('pointerdown', () => this.prestigeText.setAlpha(0.78));
+    this.prestigeText.on('pointerup', () => {
+      this.prestigeText.setAlpha(1);
+      this.openPrestigeInfo();
+    });
+    this.prestigePulse = this.tweens.add({
+      targets: this.prestigeText,
+      scaleX: 1.07,
+      scaleY: 1.07,
+      duration: 760,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
 
     this.btnCompose = new TextSpriteButton({
       scene: this,
@@ -104,12 +123,25 @@ export class MainMenu extends Scene {
       y: 0,
     });
     this.currency.setValue(user?.notes ?? 0);
+    this.infoDialog = new InfoDialog({ scene: this });
 
     this.refreshLayout();
     this.scale.on('resize', this.resizeHandler);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.prestigePulse?.remove();
       this.scale.off('resize', this.resizeHandler);
     });
+  }
+
+  private openPrestigeInfo() {
+    this.infoDialog.open(`
+      Earn Notes by creating and rating tunes to climb the musical ladder! Don't worry - spending Notes at the Emporium won't lower your rank
+      0 - 100  | Whistler
+      101 - 500  | Street Busker
+      501 - 1500  | Jazz Cat
+      1501 - 3000 | Virtuoso
+      3001+  | Grand Maestro
+    `);
   }
 
   private refreshLayout() {
@@ -120,12 +152,12 @@ export class MainMenu extends Scene {
     this.cameras.resize(width, height);
     coverSceneBackground(this.background, width, height);
 
-    this.titleMain.setPosition(width / 2, height * 0.14);
+    this.titleMain.setPosition(width / 2, height * 0.2);
     this.titleMain.setFontSize(Math.max(30, Math.min(48, width * 0.055)));
     this.titleMain.setWordWrapWidth(Math.max(190, Math.min(300, width * 0.64)));
-    this.titleSub.setPosition(width / 2, height * 0.23);
+    this.titleSub.setPosition(width / 2, height * 0.32);
     this.titleSub.setWordWrapWidth(width * 0.78);
-    this.prestigeText.setPosition(width / 2, height * 0.29);
+    this.prestigeText.setPosition(width / 2, height * 0.38);
     this.prestigeText.setWordWrapWidth(width * 0.78);
 
     this.btnCompose.resize(buttonWidth, buttonHeight, 20);
@@ -134,7 +166,7 @@ export class MainMenu extends Scene {
 
     const buttonGap = Math.max(7, Math.min(14, height * 0.016));
     const buttonStep = buttonHeight + buttonGap;
-    const buttonGroupY = height * 0.62;
+    const buttonGroupY = height * 0.7;
 
     this.btnCompose.setPosition(width / 2, buttonGroupY - buttonStep);
     this.btnRecords.setPosition(width / 2, buttonGroupY);
