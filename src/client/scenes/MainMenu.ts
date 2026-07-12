@@ -135,12 +135,8 @@ export class MainMenu extends Scene {
 
   private openPrestigeInfo() {
     this.infoDialog.open(`
-      Earn Notes by creating and rating tunes to climb the musical ladder! Don't worry - spending Notes at the Emporium won't lower your rank
-      0 - 100  | Whistler
-      101 - 500  | Street Busker
-      501 - 1500  | Jazz Cat
-      1501 - 3000 | Virtuoso
-      3001+  | Grand Maestro
+      Earn Notes by creating and rating tunes to climb the musical ladder!
+      \nWhistler, Street Busker (100+), Jazz Cat (500+), Virtuoso (1500+), Grand Maestro (3000+)
     `);
   }
 

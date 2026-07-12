@@ -681,8 +681,7 @@ export class PianoScene extends Scene {
         if (this.mode === 'compose') {
             this.dialog.open(`
                 Hit RECORD, lay down at least 10 notes, and hit SAVE to press it straight into your Vinyl collection!
-                [Z]...[M] = White Keys, [S][D] [G][H][J] = Black Keys
-                [, / .] = Shift Octaves, [Space] = Pedal Sustain
+                \n[Z]...[M] White Keys, [S][D] [G][H][J] Black Keys, [, / .] Shift Octaves, [Space] Pedal Sustain
             `);
             return;
         }
