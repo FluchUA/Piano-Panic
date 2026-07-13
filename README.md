@@ -44,11 +44,11 @@ Every visual asset, interface element, and frame of animation in ToonTune was cr
 
 ![4](https://github.com/user-attachments/assets/a722cec0-02c3-47f3-8ff4-018d3cc4ab3e)
 
-**Track creation screen. You can use the metronome, the pedal (only for the piano; not supported for other instruments), and the bottom octave-change buttons, which are mirrored depending on what’s most convenient for the user**
+**Track creation screen. You can use the metronome, the pedal (only for the piano, not supported for other instruments), and the bottom octave-change buttons, which are mirrored depending on what’s most convenient for the user**
 
 ![5](https://github.com/user-attachments/assets/05de142b-deed-4d20-8466-396eda91f385)
 
-**Track creation screen—mobile version**
+**Track creation screen-mobile version**
 
 ![6](https://github.com/user-attachments/assets/734892fa-cfa8-43d5-9cb4-27c6c84d871e)
 
@@ -68,7 +68,7 @@ Every visual asset, interface element, and frame of animation in ToonTune was cr
 
 ![10](https://github.com/user-attachments/assets/a7e8aa03-8b61-4ef1-922a-edc41a81ef2a)
 
-**Listening to a track (your own or a user’s). You cannot tap the piano here; you can only listen**
+**Listening to a track (your own or a user’s). There is no option to tap the piano here, only to listen**
 
 ![11](https://github.com/user-attachments/assets/7cc684f7-a4f2-46bd-a8e5-d3081fb0de9d)
 
