@@ -24,41 +24,54 @@ Every visual asset, interface element, and frame of animation in ToonTune was cr
 
 ## Screenshots of the App
 
-Posts: Home and User-Created
+**Posts: Home and User-Created**
+
 ![0](https://github.com/user-attachments/assets/fc2e27cb-4131-43a5-9f9a-12a9eea43975)
 
-Home Screen
+**Home Screen**
+
 ![1](https://github.com/user-attachments/assets/2c4f5c9d-881c-4182-a2a8-a6b96eabef9e)
 
-Information on the home screen describing the rating system
+**Information on the home screen describing the rating system**
+
 ![2](https://github.com/user-attachments/assets/e29863df-7f13-447c-a58c-b90950df4608)
 
-User’s Track List
+**User’s Track List**
+
 ![3](https://github.com/user-attachments/assets/1494b275-7254-41e2-9720-14fedd0c96f6)
 
-Store where users can purchase a new instrument or additional track time
+**Store where users can purchase a new instrument or additional track time**
+
 ![4](https://github.com/user-attachments/assets/a722cec0-02c3-47f3-8ff4-018d3cc4ab3e)
 
-Track creation screen. You can use the metronome, the pedal (only for the piano; not supported for other instruments), and the bottom octave-change buttons, which are mirrored depending on what’s most convenient for the user
+**Track creation screen. You can use the metronome, the pedal (only for the piano; not supported for other instruments), and the bottom octave-change buttons, which are mirrored depending on what’s most convenient for the user**
+
 ![5](https://github.com/user-attachments/assets/05de142b-deed-4d20-8466-396eda91f385)
 
-Track creation screen—mobile version
+**Track creation screen—mobile version**
+
 ![6](https://github.com/user-attachments/assets/734892fa-cfa8-43d5-9cb4-27c6c84d871e)
 
-Information describing the option to play using keyboard buttons in addition to tapping the piano’s own keys
+**Information describing the option to play using keyboard buttons in addition to tapping the piano’s own keys**
+
 ![7](https://github.com/user-attachments/assets/61bbdb3f-89bb-4df6-93cd-8c18036817d8)
 
-Information describing how to publish a track
+**Information describing how to publish a track**
+
 ![8](https://github.com/user-attachments/assets/662bcd0b-cf4f-4c59-8734-36b35dc09198)
 
-Overview of your own post
+**Overview of your own post**
+
 ![9](https://github.com/user-attachments/assets/45cd5651-29bc-4028-b851-997624a3e67a)
 
-Overview of a user’s track (previously rated)
+**Overview of a user’s track (previously rated)**
+
 ![10](https://github.com/user-attachments/assets/a7e8aa03-8b61-4ef1-922a-edc41a81ef2a)
 
-Listening to a track (your own or a user’s). You cannot tap the piano here; you can only listen.
+**Listening to a track (your own or a user’s). You cannot tap the piano here; you can only listen**
+
 ![11](https://github.com/user-attachments/assets/7cc684f7-a4f2-46bd-a8e5-d3081fb0de9d)
 
-Musical instrument animations
+**Musical instrument animations**
+
 ![12](https://github.com/user-attachments/assets/28dbd546-a339-44cf-a245-2b042605b522)
