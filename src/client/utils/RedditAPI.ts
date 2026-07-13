@@ -1,7 +1,5 @@
 import {
     BuyItemResponse,
-    DebugNotesResponse,
-    DebugResetShopResponse,
     ListenTrackResponse,
     PianoEvent,
     PostInfoResponse,
@@ -46,15 +44,6 @@ export const RedditAPI = {
 
     rateTrack: (body: { trackId: string; rating: number }) =>
         apiRequest<SubmitRatingResponse>('/api/rate-track', 'POST', body),
-
-    debugAddNotes: () =>
-        apiRequest<DebugNotesResponse>('/api/debug/add-notes', 'POST'),
-
-    debugRemoveNotes: () =>
-        apiRequest<DebugNotesResponse>('/api/debug/remove-notes', 'POST'),
-
-    debugResetShop: () =>
-        apiRequest<DebugResetShopResponse>('/api/debug/reset-shop', 'POST'),
 };
 
 // Wraps API calls with the global loader

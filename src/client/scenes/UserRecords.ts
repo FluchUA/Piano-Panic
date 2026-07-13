@@ -256,7 +256,7 @@ export class UserRecordsScene extends Scene {
                             });
                         }
                         await this.loadTracks();
-                        if (this.isSceneAlive) this.infoDialog.open(`Published! You earned ${response.bonusNotes} notes.`);
+                        if (this.isSceneAlive) this.infoDialog.open(`Published! You earned ${response.bonusNotes} notes`);
                     } catch (error) {
                         if (!this.isSceneAlive) return;
                         this.infoDialog.open(error instanceof Error ? error.message : 'Publish failed');
@@ -278,7 +278,7 @@ export class UserRecordsScene extends Scene {
             iconAnimation: 'small_square_remove_icon_active',
             onClick: () => this.confirmDialog.open({
                 title: 'DELETE\nRECORD?',
-                message: 'This saved draft will disappear from your vinyl shelf.',
+                message: 'This saved draft will disappear from your vinyl shelf',
                 confirmLabel: 'Delete',
                 onConfirm: async () => {
                     await RedditAPI.deleteTrack({ trackId: track.id });

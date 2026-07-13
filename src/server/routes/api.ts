@@ -5,8 +5,6 @@ import { AppMode, InstrumentId, PianoEventType, ShopItem } from '../../shared/ap
 import { PUBLISH_REWARD, RATING_REWARD, SHOP_ITEM_PRICES } from '../../shared/economy';
 import type {
     BuyItemResponse,
-    DebugNotesResponse,
-    DebugResetShopResponse,
     ErrorResponse,
     ListenTrackResponse,
     PianoEvent,
@@ -25,7 +23,6 @@ export const api = new Hono();
 
 const BASE_DURATION = 30;
 const MAX_DURATION = 300;
-const DEBUG_NOTES_STEP = 25;
 
 const SHOP_INSTRUMENTS = [
     ShopItem.SYNTH_PIANO,
@@ -511,47 +508,5 @@ api.post('/rate-track', async (c) => {
         reward: RATING_REWARD,
         averageRating: stats.averageRating,
         ratingCount: stats.ratingCount,
-    });
-});
-
-/////////////////////////////////////////////
-// DEBUG SHOP HELPERS
-/////////////////////////////////////////////
-api.post('/debug/add-notes', async (c) => {
-    const { userId } = context;
-    if (!userId) return c.json<ErrorResponse>({ status: 'error', message: 'Unauthorized' }, 401);
-
-    const notes = await redis.hIncrBy(`userDetails:${userId}`, 'notes', DEBUG_NOTES_STEP);
-
-    return c.json<DebugNotesResponse>({ notes });
-});
-
-api.post('/debug/remove-notes', async (c) => {
-    const { userId } = context;
-    if (!userId) return c.json<ErrorResponse>({ status: 'error', message: 'Unauthorized' }, 401);
-
-    const userDetails = await redis.hGetAll(`userDetails:${userId}`);
-    const currentNotes = Number(userDetails?.notes ?? 0);
-    const nextNotes = Math.max(currentNotes - DEBUG_NOTES_STEP, 0);
-    await redis.hSet(`userDetails:${userId}`, { notes: String(nextNotes) });
-
-    return c.json<DebugNotesResponse>({ notes: nextNotes });
-});
-
-api.post('/debug/reset-shop', async (c) => {
-    const { userId } = context;
-    if (!userId) return c.json<ErrorResponse>({ status: 'error', message: 'Unauthorized' }, 401);
-
-    const userDetails = await redis.hGetAll(`userDetails:${userId}`);
-    const notes = Number(userDetails?.notes ?? 0);
-    await redis.hSet(`userDetails:${userId}`, {
-        purchasedItems: '',
-        maxTrackDuration: String(BASE_DURATION),
-    });
-
-    return c.json<DebugResetShopResponse>({
-        notes,
-        purchasedItems: [],
-        maxTrackDuration: BASE_DURATION,
     });
 });

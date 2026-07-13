@@ -802,7 +802,7 @@ export class PianoScene extends Scene {
             });
             this.track = savedTrack;
             this.updateTrackActionButtons();
-            this.dialog.open(`Saved as a draft! Publish it later from MY VINYL RECORDS to earn ${PUBLISH_REWARD} notes.`);
+            this.dialog.open(`Saved as a draft! Publish it later from MY VINYL RECORDS to earn ${PUBLISH_REWARD} notes`);
         } catch (error) {
             if (error instanceof Error) throw error;
             throw new Error('Save failed', { cause: error });

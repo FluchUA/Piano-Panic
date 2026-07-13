@@ -2,8 +2,6 @@ import Phaser, { Scene } from 'phaser';
 import { CurrencyWidget } from '../UI/CurrencyWidget';
 import { SpriteButton } from '../UI/SpriteButton';
 import { TextSpriteButton } from '../UI/TextSpriteButton';
-import { ToonButton } from '../UI/ToonButton';
-import { ConfirmDialog } from '../UI/ConfirmDialog';
 import { InfoDialog } from '../UI/InfoDialog';
 import { RedditAPI } from '../utils/RedditAPI';
 import { ShopItem } from '../../shared/api';
@@ -41,9 +39,7 @@ export class ShopScene extends Scene {
     private backButton!: SpriteButton;
     private currency!: CurrencyWidget;
     private itemViews: ShopItemView[] = [];
-    private debugButtons: ToonButton[] = [];
     private infoDialog!: InfoDialog;
-    private confirmDialog!: ConfirmDialog;
     private user!: UserResponse;
     private resizeHandler = () => this.refreshLayout();
 
@@ -96,10 +92,8 @@ export class ShopScene extends Scene {
         this.currency = new CurrencyWidget({ scene: this, x: 0, y: 0 });
         this.currency.setValue(this.user.notes);
         this.infoDialog = new InfoDialog({ scene: this });
-        this.confirmDialog = new ConfirmDialog({ scene: this });
 
         this.renderItems();
-        this.renderDebugButtons();
         this.refreshLayout();
         this.scale.on('resize', this.resizeHandler);
         this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -164,48 +158,6 @@ export class ShopScene extends Scene {
         return art;
     }
 
-    // Creates temporary testing buttons
-    private renderDebugButtons() {
-        this.debugButtons.forEach((button) => button.destroy());
-        this.debugButtons = [
-            new ToonButton({
-                scene: this,
-                x: 0,
-                y: 0,
-                width: 46,
-                height: 38,
-                label: '+',
-                fontSize: 20,
-                onClick: () => this.debugAddNotes(),
-            }),
-            new ToonButton({
-                scene: this,
-                x: 0,
-                y: 0,
-                width: 46,
-                height: 38,
-                label: '-',
-                fontSize: 20,
-                onClick: () => this.debugRemoveNotes(),
-            }),
-            new ToonButton({
-                scene: this,
-                x: 0,
-                y: 0,
-                width: 76,
-                height: 38,
-                label: 'RST',
-                fontSize: 14,
-                onClick: () => this.confirmDialog.open({
-                    title: 'RESET SHOP?',
-                    message: 'This clears purchased instruments and bonus time for testing.',
-                    confirmLabel: 'Reset',
-                    onConfirm: () => this.debugResetShop(),
-                }),
-            }),
-        ];
-    }
-
     // Buys a shop item and refreshes the user state
     private async buyItem(item: ShopEntry) {
         try {
@@ -223,37 +175,6 @@ export class ShopScene extends Scene {
         } catch (error) {
             this.infoDialog.open(error instanceof Error ? error.message : 'Purchase failed');
         }
-    }
-
-    // Adds test notes for shop testing
-    private async debugAddNotes() {
-        const response = await RedditAPI.debugAddNotes();
-        this.user = { ...this.user, notes: response.notes };
-        this.registry.set('user', this.user);
-        this.currency.setValue(response.notes);
-    }
-
-    // Removes test notes for shop testing
-    private async debugRemoveNotes() {
-        const response = await RedditAPI.debugRemoveNotes();
-        this.user = { ...this.user, notes: response.notes };
-        this.registry.set('user', this.user);
-        this.currency.setValue(response.notes);
-    }
-
-    // Resets shop purchases for testing
-    private async debugResetShop() {
-        const response = await RedditAPI.debugResetShop();
-        this.user = {
-            ...this.user,
-            notes: response.notes,
-            purchasedItems: response.purchasedItems,
-            maxTrackDuration: response.maxTrackDuration,
-        };
-        this.registry.set('user', this.user);
-        this.currency.setValue(response.notes);
-        this.renderItems();
-        this.refreshLayout();
     }
 
     // Chooses the shop button label
@@ -309,10 +230,5 @@ export class ShopScene extends Scene {
             view.button.resize(cardWidth * 0.72, Math.max(32, cardHeight * 0.25), 12);
             view.button.setPosition(0, cardHeight * 0.32);
         });
-
-        const debugY = height - 34;
-        this.debugButtons[0]?.setPosition(width / 2 - 72, debugY);
-        this.debugButtons[1]?.setPosition(width / 2 - 18, debugY);
-        this.debugButtons[2]?.setPosition(width / 2 + 54, debugY);
     }
 }

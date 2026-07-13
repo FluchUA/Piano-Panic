@@ -134,13 +134,3 @@ export type ListenTrackResponse = {
     hasListened: true;
     listenerCount: number;
 };
-
-export type DebugNotesResponse = {
-    notes: number;
-};
-
-export type DebugResetShopResponse = {
-    notes: number;
-    purchasedItems: ShopItem[];
-    maxTrackDuration: number;
-};
