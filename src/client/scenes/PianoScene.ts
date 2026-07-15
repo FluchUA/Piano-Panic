@@ -93,6 +93,8 @@ const INSTRUMENT_BACKGROUND_ANIMS: Record<InstrumentId, string> = {
 };
 
 const NOTE_RELEASE_SECONDS = 0.42;
+const PIANO_VOLUME_DB = -8;
+const PIANO_LIMITER_DB = -1;
 const PLAYBACK_RELEASE_TAIL_MS = 700;
 const METRONOME_FRAME_MS = 125;
 
@@ -1390,10 +1392,13 @@ export class PianoScene extends Scene {
             const preloadedSamples = this.getPreloadedSampleBuffers(instrument);
             if (preloadedSamples) {
                 this.instrumentReady = Promise.resolve();
-                this.synth = new Tone.Sampler({
+                const sampler = new Tone.Sampler({
                     urls: preloadedSamples,
                     release: NOTE_RELEASE_SECONDS,
-                }).toDestination();
+                });
+                this.synth = instrument === InstrumentId.DEFAULT_PIANO
+                    ? this.createPianoSamplerInstrument(sampler)
+                    : sampler.toDestination();
                 return;
             }
 
@@ -1403,9 +1408,11 @@ export class PianoScene extends Scene {
                     baseUrl: `./assets/audio/${instrument === InstrumentId.DEFAULT_PIANO ? 'piano' : 'organ'}/`,
                     release: NOTE_RELEASE_SECONDS,
                     onload: resolve,
-                }).toDestination();
+                });
 
-                this.synth = sampler;
+                this.synth = instrument === InstrumentId.DEFAULT_PIANO
+                    ? this.createPianoSamplerInstrument(sampler)
+                    : sampler.toDestination();
             });
             return;
         }
@@ -1434,6 +1441,23 @@ export class PianoScene extends Scene {
             envelope: { attack: 0.01, decay: 0.12, sustain: 0.55, release: NOTE_RELEASE_SECONDS, releaseCurve: 'exponential' },
         });
         this.synth = synth;
+    }
+
+    // Adds a piano-only safety chain to prevent stacked sample peaks
+    private createPianoSamplerInstrument(sampler: Tone.Sampler): PlayableInstrument {
+        const volume = new Tone.Volume(PIANO_VOLUME_DB);
+        const limiter = new Tone.Limiter(PIANO_LIMITER_DB);
+        sampler.chain(volume, limiter, Tone.Destination);
+
+        return {
+            triggerAttack: (note) => sampler.triggerAttack(note),
+            triggerRelease: (note, time) => sampler.triggerRelease(note, time),
+            dispose: () => {
+                sampler.dispose();
+                volume.dispose();
+                limiter.dispose();
+            },
+        };
     }
 
     // Reads preloaded sample buffers
