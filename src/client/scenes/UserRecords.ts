@@ -227,7 +227,12 @@ export class UserRecordsScene extends Scene {
             iconTexture: 'middle_square_play_icon',
             iconAnimation: 'middle_square_play_icon_active',
             onClick: () => {
-                this.scene.start('PianoScene', { mode: 'playback', track, returnScene: 'UserRecordsScene' });
+                this.scene.start('PianoScene', {
+                    mode: 'playback',
+                    track,
+                    returnScene: 'UserRecordsScene',
+                    playbackEndMessage: 'All done! Head back when ready',
+                });
             },
         });
 

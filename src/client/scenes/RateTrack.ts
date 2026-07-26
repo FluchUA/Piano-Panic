@@ -177,6 +177,9 @@ export class RateTrackScene extends Scene {
             mode: 'playback',
             track: this.track,
             returnScene: 'RateTrackScene',
+            playbackEndMessage: this.isAuthor || this.userVote !== null
+                ? 'All done! Head back when ready'
+                : 'All done! Head back and rate!',
         });
     }
 
@@ -206,7 +209,7 @@ export class RateTrackScene extends Scene {
         ].join('\n'));
 
         if (this.isAuthor) {
-            this.helperText.setText('Your tune is live. Give it another spin any time.');
+            this.helperText.setText('Your tune is live. Give it another spin any time');
             return;
         }
 

@@ -23,6 +23,7 @@ type PianoSceneData = {
     mode?: PianoMode;
     track?: TrackModel;
     returnScene?: string;
+    playbackEndMessage?: string;
 };
 
 type PlayableInstrument = {
@@ -97,6 +98,7 @@ const PIANO_VOLUME_DB = -8;
 const PIANO_LIMITER_DB = -1;
 const PLAYBACK_RELEASE_TAIL_MS = 700;
 const METRONOME_FRAME_MS = 125;
+const TIMER_UPDATE_MS = 100;
 
 export class PianoScene extends Scene {
     private mode: PianoMode = 'compose';
@@ -158,6 +160,8 @@ export class PianoScene extends Scene {
     private playbackStartedAt = 0;
     private playbackPedalActive = false;
     private isPlaying = false;
+    private playbackCompleted = false;
+    private playbackEndMessage = 'All done! Head back when ready';
     private playbackTimers: Phaser.Time.TimerEvent[] = [];
     private playbackStartTimer: Phaser.Time.TimerEvent | undefined;
     private resizeHandler = () => this.refreshLayout();
@@ -174,6 +178,7 @@ export class PianoScene extends Scene {
         this.mode = data?.mode ?? (data?.track ? 'playback' : 'compose');
         this.track = data?.track;
         this.returnScene = data?.returnScene ?? (this.mode === 'playback' ? 'UserRecordsScene' : 'MainMenu');
+        this.playbackEndMessage = data?.playbackEndMessage ?? 'All done! Head back when ready';
     }
 
     // Clears state reused by Phaser scene restarts
@@ -217,6 +222,8 @@ export class PianoScene extends Scene {
         this.playbackStartedAt = 0;
         this.playbackPedalActive = false;
         this.isPlaying = false;
+        this.playbackCompleted = false;
+        this.playbackEndMessage = 'All done! Head back when ready';
         this.playbackTimers = [];
         this.playbackStartTimer = undefined;
     }
@@ -251,6 +258,7 @@ export class PianoScene extends Scene {
             fontStyle: 'bold',
             stroke: '#2f2118',
             strokeThickness: 5,
+            align: 'center',
         }).setOrigin(0.5);
 
         this.createTopControls();
@@ -433,7 +441,9 @@ export class PianoScene extends Scene {
         } else {
             this.playButton?.setPosition(width - 34, 112);
             this.restartButton?.setPosition(width - 34, 176);
+            this.timeText.setPosition(width / 2, height * 0.2);
         }
+        this.timeText.setWordWrapWidth(Math.max(180, width * 0.74));
 
         this.publishButton?.setPosition(width - 34, 238);
         this.deleteTrackButton?.setPosition(width - 34, 296);
@@ -741,7 +751,7 @@ export class PianoScene extends Scene {
         this.setRecordButtonIcon('small_round_stop_icon');
         this.timeTimer?.remove(false);
         this.timeTimer = this.time.addEvent({
-            delay: 100,
+            delay: TIMER_UPDATE_MS,
             loop: true,
             callback: () => this.updateTimeText(),
         });
@@ -758,6 +768,7 @@ export class PianoScene extends Scene {
         this.isRecording = false;
         this.recordingStopped = true;
         this.timeTimer?.remove(false);
+        this.timeTimer = undefined;
         this.setRecordButtonIcon('small_round_remove_icon');
         this.updateStatus();
     }
@@ -773,6 +784,8 @@ export class PianoScene extends Scene {
         this.recordingStopped = false;
         this.lastRecordSignature = '';
         this.lastRecordTime = -1;
+        this.timeTimer?.remove(false);
+        this.timeTimer = undefined;
         this.setRecordButtonIcon('small_round_record_icon');
         this.updateStatus();
     }
@@ -1137,24 +1150,63 @@ export class PianoScene extends Scene {
 
     // Refreshes the remaining time text
     private updateTimeText() {
+        if (this.mode === 'playback') {
+            this.updatePlaybackTimeText();
+            return;
+        }
+
         if (this.mode !== 'compose') {
             this.timeText.setText('');
             return;
         }
 
         const remainingMs = Math.max(this.getMaxDurationMs() - this.getRecordingElapsedMs(), 0);
-        const remainingSeconds = Math.ceil(remainingMs / 1000);
-        const minutes = Math.floor(remainingSeconds / 60);
-        const seconds = String(remainingSeconds % 60).padStart(2, '0');
 
-        this.timeText.setText(`TIME ${minutes}:${seconds}`);
+        this.timeText.setText(`TIME ${this.formatTimer(remainingMs)}`);
 
         if (remainingMs <= 0 && this.isRecording) this.stopRecording();
+    }
+
+    // Refreshes playback countdown text
+    private updatePlaybackTimeText() {
+        if (!this.track) {
+            this.timeText.setText('');
+            return;
+        }
+
+        if (this.playbackCompleted) {
+            this.timeText.setText(this.playbackEndMessage);
+            return;
+        }
+
+        const remainingMs = Math.max(this.getPlaybackTotalMs() - this.getPlaybackElapsedMs(), 0);
+        this.timeText.setText(remainingMs <= 0 ? this.playbackEndMessage : `ENDS IN ${this.formatTimer(remainingMs)}`);
     }
 
     // Refreshes compose status UI
     private updateStatus() {
         this.updateTimeText();
+    }
+
+    // Formats milliseconds as m:ss
+    private formatTimer(milliseconds: number) {
+        const remainingSeconds = Math.ceil(milliseconds / 1000);
+        const minutes = Math.floor(remainingSeconds / 60);
+        const seconds = String(remainingSeconds % 60).padStart(2, '0');
+
+        return `${minutes}:${seconds}`;
+    }
+
+    // Returns playback duration including release tail
+    private getPlaybackTotalMs() {
+        return (this.track?.durationMs ?? 0) + PLAYBACK_RELEASE_TAIL_MS;
+    }
+
+    // Returns elapsed playback time
+    private getPlaybackElapsedMs() {
+        if (!this.isPlaying) return this.playbackOffsetMs;
+
+        return Math.min(this.playbackOffsetMs + this.time.now - this.playbackStartedAt, this.getPlaybackTotalMs());
     }
 
     // Schedules playback timeline events
@@ -1163,9 +1215,17 @@ export class PianoScene extends Scene {
         await this.ensureAudioReady();
 
         this.isPlaying = true;
+        this.playbackCompleted = false;
         this.playbackPedalActive = false;
         this.playbackStartedAt = this.time.now;
         this.setPlayButtonIcon('small_round_pause_icon');
+        this.timeTimer?.remove(false);
+        this.timeTimer = this.time.addEvent({
+            delay: TIMER_UPDATE_MS,
+            loop: true,
+            callback: () => this.updateTimeText(),
+        });
+        this.updateTimeText();
 
         this.track.timeline
             .filter((event) => event.time >= this.playbackOffsetMs)
@@ -1174,11 +1234,12 @@ export class PianoScene extends Scene {
                 this.playbackTimers.push(timer);
             });
 
-        const duration = Math.max(this.track.durationMs - this.playbackOffsetMs, 0);
-        const finishTimer = this.time.delayedCall(duration + PLAYBACK_RELEASE_TAIL_MS, () => {
+        const finishDelay = Math.max(this.getPlaybackTotalMs() - this.playbackOffsetMs, 0);
+        const finishTimer = this.time.delayedCall(finishDelay, () => {
+            this.playbackCompleted = true;
             this.stopPlayback();
-            this.playbackOffsetMs = 0;
             this.setPlayButtonIcon('small_round_play_icon');
+            this.updateTimeText();
         });
         this.playbackTimers.push(finishTimer);
     }
@@ -1204,8 +1265,9 @@ export class PianoScene extends Scene {
 
     // Restarts playback from the beginning
     private restartPlayback() {
-        this.stopPlayback();
+        this.playbackCompleted = false;
         this.playbackOffsetMs = 0;
+        this.stopPlayback();
         void this.startPlayback();
     }
 
@@ -1213,11 +1275,17 @@ export class PianoScene extends Scene {
     private stopPlayback(resetOffset = true, updateVisuals = true) {
         this.playbackTimers.forEach((timer) => timer.remove(false));
         this.playbackTimers = [];
+        this.timeTimer?.remove(false);
+        this.timeTimer = undefined;
         this.releaseAllNotes(updateVisuals);
         this.isPlaying = false;
         this.playbackPedalActive = false;
         if (updateVisuals) this.updateSustainPedalVisual(false);
-        if (resetOffset) this.playbackStartedAt = 0;
+        if (resetOffset) {
+            this.playbackStartedAt = 0;
+            this.playbackOffsetMs = 0;
+        }
+        if (updateVisuals) this.updateStatus();
     }
 
     // Applies one recorded playback event
